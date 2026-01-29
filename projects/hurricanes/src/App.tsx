@@ -30,16 +30,17 @@ export default function App() {
   const [segmentsData, setSegmentsData] = useState<TemporalFeatureCollection | null>(null);
   const [pointsData, setPointsData] = useState<PointFeature[] | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
-  const [yearRange, setYearRange] = useState<[number, number]>([1941, 1970]);
+  const [yearRange, setYearRange] = useState<[number, number]>([1985, 2000]);
+  const [accumulatePaths, setAccumulatePaths] = useState(true);
 
   // Create timeline once we have data
   const timeline = useMemo(() => {
     if (!segmentsData) return null;
-    // Default to a generation (1941-1970), only animate hurricane season (Jun-Nov)
+    // Default to 1985-2000, only animate hurricane season (Jun-Nov)
     return new Timeline({
-      start: new Date('1941-06-01'),
-      end: new Date('1971-01-01'),
-      speed: 86400 * 30, // 1 month/sec - slower default
+      start: new Date('1985-06-01'),
+      end: new Date('2001-01-01'),
+      speed: 86400 * 30, // 1 month/sec
       seasonMonths: [5, 10], // Jun (5) through Nov (10), 0-indexed
     });
   }, [segmentsData]);
@@ -78,19 +79,61 @@ export default function App() {
   const filteredSegments = useMemo(() => {
     if (!segmentsData || !currentTime) return null;
 
+    const currentMs = currentTime.getTime();
+    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const THREE_MONTHS_MS = 3 * ONE_MONTH_MS;
+
     // First filter by time (cumulative)
     const timeFiltered = filterByTime(segmentsData, currentTime, { mode: 'cumulative' });
 
-    // Then filter by year range
+    // Then filter by year range and apply fade if not accumulating
     const [startYear, endYear] = yearRange;
-    return {
-      ...timeFiltered,
-      features: timeFiltered.features.filter((f) => {
+
+    const features = timeFiltered.features
+      .filter((f) => {
         const year = f.properties.year as number;
-        return year >= startYear && year <= endYear;
-      }),
+        if (year < startYear || year > endYear) return false;
+
+        // If not accumulating, filter out segments older than 3 months
+        if (!accumulatePaths) {
+          const endTime = new Date(f.properties.endTime as string).getTime();
+          const age = currentMs - endTime;
+          if (age > THREE_MONTHS_MS) return false;
+        }
+
+        return true;
+      })
+      .map((f) => {
+        // Calculate opacity for fading effect
+        let opacity = 0.6; // default opacity
+
+        if (!accumulatePaths) {
+          const endTime = new Date(f.properties.endTime as string).getTime();
+          const age = currentMs - endTime;
+
+          if (age <= ONE_MONTH_MS) {
+            opacity = 0.6; // Full opacity for first month
+          } else {
+            // Fade from 0.6 to 0 over months 1-3
+            const fadeProgress = (age - ONE_MONTH_MS) / (THREE_MONTHS_MS - ONE_MONTH_MS);
+            opacity = 0.6 * (1 - fadeProgress);
+          }
+        }
+
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            opacity,
+          },
+        };
+      });
+
+    return {
+      type: 'FeatureCollection' as const,
+      features,
     };
-  }, [segmentsData, currentTime, yearRange]);
+  }, [segmentsData, currentTime, yearRange, accumulatePaths]);
 
   const handleYearRangeChange = useCallback((start: number, end: number) => {
     setYearRange([start, end]);
@@ -212,7 +255,7 @@ export default function App() {
             4, 2.5,
             5, 3,
           ],
-          'line-opacity': 0.6,
+          'line-opacity': ['get', 'opacity'],
         },
       });
 
@@ -345,7 +388,7 @@ export default function App() {
   // Count unique storms from segments
   const stormCount = useMemo(() => {
     if (!filteredSegments) return 0;
-    const stormIds = new Set(filteredSegments.features.map(f => f.properties.stormId));
+    const stormIds = new Set(filteredSegments.features.map(f => (f.properties as Record<string, unknown>).stormId as string));
     return stormIds.size;
   }, [filteredSegments]);
 
@@ -369,6 +412,8 @@ export default function App() {
         <TimelineControls
           timeline={timeline}
           onYearRangeChange={handleYearRangeChange}
+          accumulatePaths={accumulatePaths}
+          onAccumulatePathsChange={setAccumulatePaths}
         />
       )}
     </div>

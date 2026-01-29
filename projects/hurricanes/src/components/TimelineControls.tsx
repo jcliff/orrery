@@ -6,6 +6,8 @@ interface TimelineControlsProps {
   minYear?: number;
   maxYear?: number;
   onYearRangeChange?: (startYear: number, endYear: number) => void;
+  accumulatePaths?: boolean;
+  onAccumulatePathsChange?: (accumulate: boolean) => void;
 }
 
 const SPEED_OPTIONS = [
@@ -20,7 +22,14 @@ const SPEED_OPTIONS = [
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-export function TimelineControls({ timeline, minYear = 1851, maxYear = 2023, onYearRangeChange }: TimelineControlsProps) {
+export function TimelineControls({
+  timeline,
+  minYear = 1851,
+  maxYear = 2023,
+  onYearRangeChange,
+  accumulatePaths = true,
+  onAccumulatePathsChange,
+}: TimelineControlsProps) {
   const [state, setState] = useState<TimelineState>(timeline.state);
   const [isDragging, setIsDragging] = useState(false);
   const [startYear, setStartYear] = useState(timeline.start.getFullYear());
@@ -207,10 +216,22 @@ export function TimelineControls({ timeline, minYear = 1851, maxYear = 2023, onY
             </option>
           ))}
         </select>
+
+        <button
+          style={{
+            ...styles.toggleButton,
+            background: accumulatePaths ? 'rgba(77, 175, 74, 0.3)' : 'rgba(255,255,255,0.1)',
+            borderColor: accumulatePaths ? '#4daf4a' : 'rgba(255,255,255,0.2)',
+          }}
+          onClick={() => onAccumulatePathsChange?.(!accumulatePaths)}
+          title={accumulatePaths ? 'Showing all paths' : 'Paths fade after 3 months'}
+        >
+          {accumulatePaths ? 'Accumulate' : 'Fade'}
+        </button>
       </div>
 
       <div style={styles.seasonNote}>
-        Hurricane season: Jun - Nov
+        {accumulatePaths ? 'Paths accumulate over time' : 'Paths fade after 1-3 months'}
       </div>
     </div>
   );
@@ -344,6 +365,15 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
   },
   speedSelect: {
+    background: 'rgba(255,255,255,0.1)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    color: 'white',
+    padding: '6px 12px',
+    borderRadius: 6,
+    fontSize: 13,
+    cursor: 'pointer',
+  },
+  toggleButton: {
     background: 'rgba(255,255,255,0.1)',
     border: '1px solid rgba(255,255,255,0.2)',
     color: 'white',
