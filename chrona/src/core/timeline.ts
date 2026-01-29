@@ -2,6 +2,7 @@ export interface TimelineOptions {
   start: Date;
   end: Date;
   speed?: number; // real-time multiplier (e.g., 86400 = 1 day/sec)
+  seasonMonths?: [number, number]; // [startMonth, endMonth] 0-indexed, e.g., [7, 10] for Aug-Nov
 }
 
 export interface TimelineState {
@@ -25,6 +26,7 @@ export class Timeline extends EventTarget {
   private isPlaying: boolean = false;
   private lastFrameTime: number = 0;
   private animationFrameId: number | null = null;
+  private seasonMonths: [number, number] | null = null;
 
   constructor(options: TimelineOptions) {
     super();
@@ -32,6 +34,39 @@ export class Timeline extends EventTarget {
     this.endTime = options.end;
     this.currentTime = new Date(options.start);
     this.speed = options.speed ?? 86400 * 365; // default: 1 year/sec
+    this.seasonMonths = options.seasonMonths ?? null;
+
+    // If season is set, snap to start of season
+    if (this.seasonMonths) {
+      this.snapToSeason();
+    }
+  }
+
+  private snapToSeason(): void {
+    if (!this.seasonMonths) return;
+    const [startMonth] = this.seasonMonths;
+    const year = this.currentTime.getFullYear();
+    const month = this.currentTime.getMonth();
+
+    if (month < startMonth) {
+      this.currentTime = new Date(year, startMonth, 1);
+    } else if (month > this.seasonMonths[1]) {
+      // Move to next year's season start
+      this.currentTime = new Date(year + 1, startMonth, 1);
+    }
+  }
+
+  private isInSeason(date: Date): boolean {
+    if (!this.seasonMonths) return true;
+    const month = date.getMonth();
+    return month >= this.seasonMonths[0] && month <= this.seasonMonths[1];
+  }
+
+  private advanceToNextSeason(date: Date): Date {
+    if (!this.seasonMonths) return date;
+    const [startMonth] = this.seasonMonths;
+    const year = date.getFullYear();
+    return new Date(year + 1, startMonth, 1);
   }
 
   get state(): TimelineState {
@@ -122,9 +157,14 @@ export class Timeline extends EventTarget {
     // Convert real time delta to simulated time delta
     // speed is in simulated seconds per real second
     const simulatedDeltaMs = deltaMs * this.speed;
-    const newTime = this.currentTime.getTime() + simulatedDeltaMs;
+    let newTime = new Date(this.currentTime.getTime() + simulatedDeltaMs);
 
-    if (newTime >= this.endTime.getTime()) {
+    // If we have a season restriction, skip months outside season
+    if (this.seasonMonths && !this.isInSeason(newTime)) {
+      newTime = this.advanceToNextSeason(this.currentTime);
+    }
+
+    if (newTime.getTime() >= this.endTime.getTime()) {
       this.currentTime = new Date(this.endTime);
       this.emitTick();
       this.pause();
@@ -132,7 +172,7 @@ export class Timeline extends EventTarget {
       return;
     }
 
-    this.currentTime = new Date(newTime);
+    this.currentTime = newTime;
     this.emitTick();
 
     this.animationFrameId = requestAnimationFrame(() => this.tick());
@@ -146,6 +186,33 @@ export class Timeline extends EventTarget {
       },
     });
     this.dispatchEvent(event);
+  }
+
+  setRange(start: Date, end: Date): void {
+    this.startTime = start;
+    this.endTime = end;
+
+    // Clamp current time to new range
+    if (this.currentTime < start) {
+      this.currentTime = new Date(start);
+    } else if (this.currentTime > end) {
+      this.currentTime = new Date(end);
+    }
+
+    if (this.seasonMonths) {
+      this.snapToSeason();
+    }
+
+    this.emitTick();
+    this.dispatchEvent(new Event('rangechange'));
+  }
+
+  setSeason(months: [number, number] | null): void {
+    this.seasonMonths = months;
+    if (months) {
+      this.snapToSeason();
+    }
+    this.emitTick();
   }
 
   destroy(): void {

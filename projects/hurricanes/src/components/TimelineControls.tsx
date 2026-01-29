@@ -3,18 +3,28 @@ import type { Timeline, TimelineState } from 'chrona';
 
 interface TimelineControlsProps {
   timeline: Timeline;
+  minYear?: number;
+  maxYear?: number;
+  onYearRangeChange?: (startYear: number, endYear: number) => void;
 }
 
 const SPEED_OPTIONS = [
+  { label: '1 month/sec', value: 86400 * 30 },
+  { label: '3 months/sec', value: 86400 * 90 },
+  { label: '6 months/sec', value: 86400 * 180 },
   { label: '1 year/sec', value: 86400 * 365 },
   { label: '2 years/sec', value: 86400 * 365 * 2 },
   { label: '5 years/sec', value: 86400 * 365 * 5 },
   { label: '10 years/sec', value: 86400 * 365 * 10 },
 ];
 
-export function TimelineControls({ timeline }: TimelineControlsProps) {
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export function TimelineControls({ timeline, minYear = 1851, maxYear = 2023, onYearRangeChange }: TimelineControlsProps) {
   const [state, setState] = useState<TimelineState>(timeline.state);
   const [isDragging, setIsDragging] = useState(false);
+  const [startYear, setStartYear] = useState(timeline.start.getFullYear());
+  const [endYear, setEndYear] = useState(timeline.end.getFullYear());
   const scrubberRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -22,17 +32,24 @@ export function TimelineControls({ timeline }: TimelineControlsProps) {
     const handlePlay = () => setState(timeline.state);
     const handlePause = () => setState(timeline.state);
     const handleSpeedChange = () => setState(timeline.state);
+    const handleRangeChange = () => {
+      setStartYear(timeline.start.getFullYear());
+      setEndYear(timeline.end.getFullYear());
+      setState(timeline.state);
+    };
 
     timeline.addEventListener('tick', handleTick);
     timeline.addEventListener('play', handlePlay);
     timeline.addEventListener('pause', handlePause);
     timeline.addEventListener('speedchange', handleSpeedChange);
+    timeline.addEventListener('rangechange', handleRangeChange);
 
     return () => {
       timeline.removeEventListener('tick', handleTick);
       timeline.removeEventListener('play', handlePlay);
       timeline.removeEventListener('pause', handlePause);
       timeline.removeEventListener('speedchange', handleSpeedChange);
+      timeline.removeEventListener('rangechange', handleRangeChange);
     };
   }, [timeline]);
 
@@ -79,15 +96,69 @@ export function TimelineControls({ timeline }: TimelineControlsProps) {
     }
   }, [isDragging, handleScrubberDrag, handleMouseUp]);
 
-  const currentYear = state.currentTime.getFullYear();
-  const startYear = timeline.start.getFullYear();
-  const endYear = timeline.end.getFullYear();
+  const handleStartYearChange = (year: number) => {
+    const clampedYear = Math.max(minYear, Math.min(endYear - 1, year));
+    setStartYear(clampedYear);
+    timeline.setRange(
+      new Date(`${clampedYear}-08-01`),
+      new Date(`${endYear}-12-01`)
+    );
+    onYearRangeChange?.(clampedYear, endYear);
+  };
+
+  const handleEndYearChange = (year: number) => {
+    const clampedYear = Math.max(startYear + 1, Math.min(maxYear, year));
+    setEndYear(clampedYear);
+    timeline.setRange(
+      new Date(`${startYear}-08-01`),
+      new Date(`${clampedYear}-12-01`)
+    );
+    onYearRangeChange?.(startYear, clampedYear);
+  };
+
+  const currentTime = state.currentTime;
+  const currentYear = currentTime.getFullYear();
+  const currentMonth = MONTH_NAMES[currentTime.getMonth()];
   const progress = timeline.progress;
 
   return (
     <div style={styles.container}>
-      {/* Year Display */}
-      <div style={styles.yearDisplay}>{currentYear}</div>
+      {/* Date Display */}
+      <div style={styles.dateDisplay}>
+        <span style={styles.monthDisplay}>{currentMonth}</span>
+        <span style={styles.yearDisplay}>{currentYear}</span>
+      </div>
+
+      {/* Year Range Selector */}
+      <div style={styles.rangeSelector}>
+        <div style={styles.yearRangeDisplay}>
+          <span>{startYear}</span>
+          <span style={styles.rangeDash}>—</span>
+          <span>{endYear}</span>
+        </div>
+        <div style={styles.sliderContainer}>
+          <input
+            type="range"
+            min={minYear}
+            max={maxYear}
+            value={startYear}
+            onChange={(e) => handleStartYearChange(parseInt(e.target.value))}
+            style={styles.slider}
+          />
+          <input
+            type="range"
+            min={minYear}
+            max={maxYear}
+            value={endYear}
+            onChange={(e) => handleEndYearChange(parseInt(e.target.value))}
+            style={styles.slider}
+          />
+        </div>
+        <div style={styles.sliderLabels}>
+          <span>{minYear}</span>
+          <span>{maxYear}</span>
+        </div>
+      </div>
 
       {/* Scrubber */}
       <div
@@ -137,6 +208,10 @@ export function TimelineControls({ timeline }: TimelineControlsProps) {
           ))}
         </select>
       </div>
+
+      <div style={styles.seasonNote}>
+        Hurricane season: Aug - Nov
+      </div>
     </div>
   );
 }
@@ -156,13 +231,61 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     gap: 12,
-    minWidth: 300,
+    minWidth: 340,
+  },
+  dateDisplay: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  monthDisplay: {
+    fontSize: 20,
+    fontWeight: 500,
+    opacity: 0.8,
   },
   yearDisplay: {
     fontSize: 48,
     fontWeight: 'bold',
     fontVariantNumeric: 'tabular-nums',
     letterSpacing: '-0.02em',
+  },
+  rangeSelector: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  yearRangeDisplay: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    fontSize: 16,
+    fontWeight: 500,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  rangeDash: {
+    opacity: 0.4,
+  },
+  sliderContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  slider: {
+    width: '100%',
+    height: 6,
+    appearance: 'none',
+    background: 'rgba(255,255,255,0.2)',
+    borderRadius: 3,
+    cursor: 'pointer',
+    accentColor: '#4daf4a',
+  },
+  sliderLabels: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: 10,
+    opacity: 0.5,
   },
   scrubber: {
     width: '100%',
@@ -228,5 +351,10 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 6,
     fontSize: 13,
     cursor: 'pointer',
+  },
+  seasonNote: {
+    fontSize: 11,
+    opacity: 0.5,
+    fontStyle: 'italic',
   },
 };

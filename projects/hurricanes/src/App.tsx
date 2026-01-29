@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Timeline, filterByTime, type TemporalFeatureCollection } from 'chrona';
@@ -11,15 +11,17 @@ export default function App() {
   const map = useRef<maplibregl.Map | null>(null);
   const [tracksData, setTracksData] = useState<TemporalFeatureCollection | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [yearRange, setYearRange] = useState<[number, number]>([1851, 2023]);
 
   // Create timeline once we have data
   const timeline = useMemo(() => {
     if (!tracksData) return null;
-    // Data spans 1851-2023
+    // Data spans 1851-2023, only animate hurricane season (Aug-Nov)
     return new Timeline({
-      start: new Date('1851-01-01'),
+      start: new Date('1851-08-01'),
       end: new Date('2024-01-01'),
       speed: 86400 * 365, // 1 year/sec
+      seasonMonths: [7, 10], // Aug (7) through Nov (10), 0-indexed
     });
   }, [tracksData]);
 
@@ -49,11 +51,27 @@ export default function App() {
       .then((data) => setTracksData(data as TemporalFeatureCollection));
   }, []);
 
-  // Filter tracks based on current time
+  // Filter tracks based on current time AND year range
   const filteredTracks = useMemo(() => {
     if (!tracksData || !currentTime) return null;
-    return filterByTime(tracksData, currentTime, { mode: 'cumulative' });
-  }, [tracksData, currentTime]);
+
+    // First filter by time (cumulative)
+    const timeFiltered = filterByTime(tracksData, currentTime, { mode: 'cumulative' });
+
+    // Then filter by year range
+    const [startYear, endYear] = yearRange;
+    return {
+      ...timeFiltered,
+      features: timeFiltered.features.filter((f) => {
+        const year = f.properties.year as number;
+        return year >= startYear && year <= endYear;
+      }),
+    };
+  }, [tracksData, currentTime, yearRange]);
+
+  const handleYearRangeChange = useCallback((start: number, end: number) => {
+    setYearRange([start, end]);
+  }, []);
 
   // Initialize map
   useEffect(() => {
@@ -191,7 +209,12 @@ export default function App() {
       <Legend />
 
       {/* Timeline Controls */}
-      {timeline && <TimelineControls timeline={timeline} />}
+      {timeline && (
+        <TimelineControls
+          timeline={timeline}
+          onYearRangeChange={handleYearRangeChange}
+        />
+      )}
     </div>
   );
 }
