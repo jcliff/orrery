@@ -24,7 +24,7 @@ export default function App() {
   const map = useRef<maplibregl.Map | null>(null);
   const [buildingsData, setBuildingsData] = useState<TemporalFeatureCollection | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
-  const [yearRange, setYearRange] = useState<[number, number]>([1848, 1950]);
+  const [yearRange, setYearRange] = useState<[number, number]>([1848, 2022]);
   const [accumulatePaths, setAccumulatePaths] = useState(true);
   const [tilesLoaded, setTilesLoaded] = useState(false);
 
