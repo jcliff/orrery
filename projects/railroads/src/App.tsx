@@ -18,8 +18,8 @@ export default function App() {
   const timeline = useMemo(() => {
     if (!segmentsData) return null;
     return new Timeline({
-      start: new Date('1830-01-01'),
-      end: new Date('1917-01-01'),
+      start: new Date('1850-01-01'),
+      end: new Date('1876-01-01'),
       speed: 86400 * 365, // 1 year/sec
     });
   }, [segmentsData]);
