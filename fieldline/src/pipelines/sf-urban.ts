@@ -33,6 +33,9 @@ interface RawParcel {
   };
   analysis_neighborhood: string;
   property_location?: string;
+  property_area?: string;
+  number_of_stories?: string;
+  number_of_units?: string;
 }
 
 interface BlockCluster {
@@ -42,6 +45,8 @@ interface BlockCluster {
   latSum: number;
   useTypes: Record<string, { count: number; earliestYear: number }>;
   totalCount: number;
+  totalArea: number;
+  maxStories: number;
   earliestYear: number;
   hasEstimates: boolean;
 }
@@ -94,6 +99,8 @@ interface Building {
   neighborhood: string;
   parcelNumber: string;
   unitCount: number; // How many parcels/units at this location
+  area: number; // Total sq ft (summed across all units)
+  stories: number; // Max stories
 }
 
 // Calculate median of an array
@@ -177,6 +184,10 @@ async function main() {
       .replace(/\s+/g, ' ')
       .trim() || '';
 
+    // Parse area and stories
+    const area = parseFloat(parcel.property_area || '0') || 0;
+    const stories = parseFloat(parcel.number_of_stories || '0') || 0;
+
     // Dedupe by coordinates
     const coordKey = getCoordKey(lng, lat);
     const existing = buildingsByCoord.get(coordKey);
@@ -192,10 +203,14 @@ async function main() {
         neighborhood: hood,
         parcelNumber: parcel.parcel_number,
         unitCount: 1,
+        area,
+        stories,
       });
     } else {
-      // Merge: keep earliest year, update use if this one is earlier
+      // Merge: keep earliest year, sum areas, max stories
       existing.unitCount++;
+      existing.area += area;
+      existing.stories = Math.max(existing.stories, stories);
       if (year < existing.year) {
         existing.year = year;
         existing.estimated = estimated;
@@ -212,7 +227,7 @@ async function main() {
   const detailedFeatures: GeoJSONFeature[] = [];
 
   for (const building of buildingsByCoord.values()) {
-    const { lng, lat, year, estimated, use, address, neighborhood, parcelNumber, unitCount } = building;
+    const { lng, lat, year, estimated, use, address, neighborhood, parcelNumber, unitCount, area, stories } = building;
     const startTime = `${year}-01-01T00:00:00Z`;
 
     // Add to detailed features
@@ -226,7 +241,9 @@ async function main() {
         neighborhood,
         startTime,
         color: getUseColor(use),
-        units: unitCount, // Track how many units (for condos)
+        units: unitCount,
+        area: Math.round(area),
+        stories: Math.round(stories),
       },
       geometry: {
         type: 'Point',
@@ -245,6 +262,8 @@ async function main() {
         latSum: 0,
         useTypes: {},
         totalCount: 0,
+        totalArea: 0,
+        maxStories: 0,
         earliestYear: year,
         hasEstimates: false,
       };
@@ -254,6 +273,8 @@ async function main() {
     // Accumulate coordinates for centroid calculation
     cluster.lngSum += lng;
     cluster.latSum += lat;
+    cluster.totalArea += area;
+    cluster.maxStories = Math.max(cluster.maxStories, stories);
 
     if (!cluster.useTypes[use]) {
       cluster.useTypes[use] = { count: 0, earliestYear: year };
@@ -303,6 +324,8 @@ async function main() {
         year: cluster.earliestYear,
         use: dominantUse,
         count: cluster.totalCount,
+        area: Math.round(cluster.totalArea),
+        stories: Math.round(cluster.maxStories),
         estimated: cluster.hasEstimates,
         startTime,
         color: getUseColor(dominantUse),

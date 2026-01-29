@@ -179,6 +179,7 @@ export default function App() {
       });
 
       // Aggregated layer (shown when zoomed out)
+      // Size by sqrt of total area (sq ft) - subtle weighting
       map.current.addLayer({
         id: 'buildings-layer',
         type: 'circle',
@@ -189,8 +190,8 @@ export default function App() {
             'interpolate',
             ['linear'],
             ['zoom'],
-            10, ['*', 0.5, ['sqrt', ['get', 'count']]],
-            14, ['*', 1.5, ['sqrt', ['get', 'count']]],
+            10, ['max', 2, ['min', 6, ['/', ['sqrt', ['get', 'area']], 150]]],
+            14, ['max', 3, ['min', 10, ['/', ['sqrt', ['get', 'area']], 80]]],
           ],
           'circle-color': ['get', 'color'],
           'circle-opacity': ['get', 'opacity'],
@@ -199,6 +200,7 @@ export default function App() {
 
       // Detailed layer (PMTiles - shown when zoomed in)
       // Uses GPU-evaluated filters instead of setData() for 60fps performance
+      // Size by sqrt of area - subtle weighting
       map.current.addLayer({
         id: 'buildings-detailed-layer',
         type: 'circle',
@@ -210,8 +212,8 @@ export default function App() {
             'interpolate',
             ['linear'],
             ['zoom'],
-            15, 2,
-            18, 5,
+            15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+            18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
           ],
           'circle-color': ['get', 'color'],
           'circle-opacity': 0.8,

@@ -10,6 +10,9 @@ const FIELDS = [
   'the_geom',
   'analysis_neighborhood',
   'property_location',
+  'property_area',
+  'number_of_stories',
+  'number_of_units',
 ].join(',');
 
 async function fetchBatch(offset: number): Promise<unknown[]> {
