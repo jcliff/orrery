@@ -52,16 +52,25 @@ export default function App() {
     };
   }, [timeline]);
 
-  // Load buildings data (both aggregated and detailed)
+  const [isZoomedIn, setIsZoomedIn] = useState(false);
+  const detailedDataLoaded = useRef(false);
+
+  // Load aggregated buildings data on mount
   useEffect(() => {
     fetch(BUILDINGS_URL)
       .then((res) => res.json())
       .then((data) => setBuildingsData(data as TemporalFeatureCollection));
-
-    fetch(BUILDINGS_DETAILED_URL)
-      .then((res) => res.json())
-      .then((data) => setBuildingsDetailedData(data as TemporalFeatureCollection));
   }, []);
+
+  // Lazy-load detailed data only when zoomed in
+  useEffect(() => {
+    if (isZoomedIn && !detailedDataLoaded.current) {
+      detailedDataLoaded.current = true;
+      fetch(BUILDINGS_DETAILED_URL)
+        .then((res) => res.json())
+        .then((data) => setBuildingsDetailedData(data as TemporalFeatureCollection));
+    }
+  }, [isZoomedIn]);
 
   // Filter buildings based on current time AND year range
   const filteredBuildings = useMemo(() => {
@@ -120,7 +129,8 @@ export default function App() {
 
   // Filter detailed buildings (same logic, for zoomed-in view)
   const filteredBuildingsDetailed = useMemo(() => {
-    if (!buildingsDetailedData || !currentTime) return null;
+    // Skip filtering when zoomed out (saves CPU)
+    if (!isZoomedIn || !buildingsDetailedData || !currentTime) return null;
 
     const currentMs = currentTime.getTime();
     const TEN_YEARS_MS = 10 * 365 * 24 * 60 * 60 * 1000;
@@ -171,7 +181,7 @@ export default function App() {
       type: 'FeatureCollection' as const,
       features,
     };
-  }, [buildingsDetailedData, currentTime, yearRange, accumulatePaths]);
+  }, [isZoomedIn, buildingsDetailedData, currentTime, yearRange, accumulatePaths]);
 
   const handleYearRangeChange = useCallback((start: number, end: number) => {
     setYearRange([start, end]);
@@ -209,6 +219,13 @@ export default function App() {
       },
       center: [-122.4194, 37.7749], // San Francisco
       zoom: 12,
+    });
+
+    // Track zoom level for lazy-loading detailed data
+    map.current.on('zoom', () => {
+      if (!map.current) return;
+      const zoom = map.current.getZoom();
+      setIsZoomedIn(zoom >= ZOOM_THRESHOLD);
     });
 
     map.current.on('load', () => {
