@@ -8,9 +8,11 @@
     "build": "tsc",
     "pipeline": "node --import tsx src/pipelines/hurricanes.ts",
     "pipeline:railroads": "node --import tsx src/pipelines/railroads.ts",
-    "pipeline:sf-urban": "node --import tsx src/pipelines/sf-urban.ts"
+    "pipeline:sf-urban": "node --import tsx src/pipelines/sf-urban.ts",
+    "pipeline:sf-urban-tiles": "node --import tsx src/pipelines/sf-urban-tiles.ts"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "@types/proj4": "^2.19.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"

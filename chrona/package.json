@@ -18,6 +18,7 @@
   "keywords": ["timeline", "animation", "visualization", "geojson", "temporal"],
   "license": "ISC",
   "devDependencies": {
+    "maplibre-gl": "^4.1.2",
     "typescript": "^5.3.3"
   }
 }

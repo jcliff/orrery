@@ -1,21 +1,32 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Timeline, filterByTime, type TemporalFeatureCollection } from 'chrona';
+import { Protocol } from 'pmtiles';
+import {
+  Timeline,
+  filterByTime,
+  createTemporalFilterWithRange,
+  createOpacityExpression,
+  type TemporalFeatureCollection,
+} from 'chrona';
 import { TimelineControls } from './components/TimelineControls';
 
 const BUILDINGS_URL = '/buildings.geojson';
-const BUILDINGS_DETAILED_URL = '/buildings-detailed.geojson';
+const BUILDINGS_PMTILES_URL = 'pmtiles:///buildings.pmtiles';
 const ZOOM_THRESHOLD = 15; // Switch to detailed view at this zoom level
+
+// Register PMTiles protocol once at module level
+const protocol = new Protocol();
+maplibregl.addProtocol('pmtiles', protocol.tile);
 
 export default function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [buildingsData, setBuildingsData] = useState<TemporalFeatureCollection | null>(null);
-  const [buildingsDetailedData, setBuildingsDetailedData] = useState<TemporalFeatureCollection | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [yearRange, setYearRange] = useState<[number, number]>([1848, 1950]);
   const [accumulatePaths, setAccumulatePaths] = useState(true);
+  const [tilesLoaded, setTilesLoaded] = useState(false);
 
   // Create timeline once we have data
   const timeline = useMemo(() => {
@@ -52,9 +63,6 @@ export default function App() {
     };
   }, [timeline]);
 
-  const [isZoomedIn, setIsZoomedIn] = useState(false);
-  const detailedDataLoaded = useRef(false);
-
   // Load aggregated buildings data on mount
   useEffect(() => {
     fetch(BUILDINGS_URL)
@@ -62,17 +70,7 @@ export default function App() {
       .then((data) => setBuildingsData(data as TemporalFeatureCollection));
   }, []);
 
-  // Lazy-load detailed data only when zoomed in
-  useEffect(() => {
-    if (isZoomedIn && !detailedDataLoaded.current) {
-      detailedDataLoaded.current = true;
-      fetch(BUILDINGS_DETAILED_URL)
-        .then((res) => res.json())
-        .then((data) => setBuildingsDetailedData(data as TemporalFeatureCollection));
-    }
-  }, [isZoomedIn]);
-
-  // Filter buildings based on current time AND year range
+  // Filter aggregated buildings based on current time AND year range
   const filteredBuildings = useMemo(() => {
     if (!buildingsData || !currentTime) return null;
 
@@ -127,32 +125,6 @@ export default function App() {
     };
   }, [buildingsData, currentTime, yearRange, accumulatePaths]);
 
-  // Filter detailed buildings - STATIC view based on year range only (no animation)
-  // This prevents crashes from filtering 212k features on every tick
-  const filteredBuildingsDetailed = useMemo(() => {
-    if (!isZoomedIn || !buildingsDetailedData) return null;
-
-    const [startYear, endYear] = yearRange;
-
-    const features = buildingsDetailedData.features
-      .filter((f) => {
-        const year = f.properties.year as number;
-        return year >= startYear && year <= endYear;
-      })
-      .map((f) => ({
-        ...f,
-        properties: {
-          ...f.properties,
-          opacity: 0.8,
-        },
-      }));
-
-    return {
-      type: 'FeatureCollection' as const,
-      features,
-    };
-  }, [isZoomedIn, buildingsDetailedData, yearRange]);
-
   const handleYearRangeChange = useCallback((start: number, end: number) => {
     setYearRange([start, end]);
   }, []);
@@ -191,26 +163,19 @@ export default function App() {
       zoom: 12,
     });
 
-    // Track zoom level for lazy-loading detailed data
-    map.current.on('zoom', () => {
-      if (!map.current) return;
-      const zoom = map.current.getZoom();
-      setIsZoomedIn(zoom >= ZOOM_THRESHOLD);
-    });
-
     map.current.on('load', () => {
       if (!map.current) return;
 
-      // Aggregated source (for zoomed out)
+      // Aggregated source (GeoJSON - for zoomed out view)
       map.current.addSource('buildings', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       });
 
-      // Detailed source (for zoomed in)
-      map.current.addSource('buildings-detailed', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
+      // Detailed source (PMTiles - for zoomed in view)
+      map.current.addSource('buildings-tiles', {
+        type: 'vector',
+        url: BUILDINGS_PMTILES_URL,
       });
 
       // Aggregated layer (shown when zoomed out)
@@ -232,11 +197,13 @@ export default function App() {
         },
       });
 
-      // Detailed layer (shown when zoomed in)
+      // Detailed layer (PMTiles - shown when zoomed in)
+      // Uses GPU-evaluated filters instead of setData() for 60fps performance
       map.current.addLayer({
         id: 'buildings-detailed-layer',
         type: 'circle',
-        source: 'buildings-detailed',
+        source: 'buildings-tiles',
+        'source-layer': 'buildings',
         minzoom: ZOOM_THRESHOLD,
         paint: {
           'circle-radius': [
@@ -247,9 +214,11 @@ export default function App() {
             18, 5,
           ],
           'circle-color': ['get', 'color'],
-          'circle-opacity': ['get', 'opacity'],
+          'circle-opacity': 0.8,
         },
       });
+
+      setTilesLoaded(true);
 
       // Mouse events for both layers
       for (const layerId of ['buildings-layer', 'buildings-detailed-layer']) {
@@ -300,8 +269,7 @@ export default function App() {
           .setHTML(
             `
             ${address ? `<strong>${address}</strong><br/>` : ''}
-            Built: ${estimated ? '~' : ''}${year}${estimated ? ' (est.)' : ''}<br/>
-            Use: ${use}${neighborhood ? `<br/>${neighborhood}` : ''}
+            Built: ${estimated ? '~' : ''}${year}${estimated ? ' (est.)' : ''}${use ? `<br/>Use: ${use}` : ''}${neighborhood ? `<br/>${neighborhood}` : ''}
           `
           )
           .addTo(map.current);
@@ -314,24 +282,43 @@ export default function App() {
     };
   }, []);
 
-  // Update map data (both aggregated and detailed sources)
+  // Update aggregated layer data (GeoJSON - still uses setData for small dataset)
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !filteredBuildings) return;
 
-    if (filteredBuildings) {
-      const source = map.current.getSource('buildings') as maplibregl.GeoJSONSource;
-      if (source) {
-        source.setData(filteredBuildings as GeoJSON.FeatureCollection);
-      }
+    const source = map.current.getSource('buildings') as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(filteredBuildings as GeoJSON.FeatureCollection);
     }
+  }, [filteredBuildings]);
 
-    if (filteredBuildingsDetailed) {
-      const detailedSource = map.current.getSource('buildings-detailed') as maplibregl.GeoJSONSource;
-      if (detailedSource) {
-        detailedSource.setData(filteredBuildingsDetailed as GeoJSON.FeatureCollection);
-      }
+  // Update detailed layer filter (GPU-evaluated - no setData, no JS loop!)
+  // This is the key optimization: setFilter() updates a GPU uniform in O(1)
+  // instead of rebuilding spatial index for 212k features
+  useEffect(() => {
+    if (!map.current || !tilesLoaded || !currentTime) return;
+
+    const year = currentTime.getFullYear();
+
+    // GPU-evaluated temporal filter
+    const filter = createTemporalFilterWithRange(year, yearRange, {
+      mode: accumulatePaths ? 'cumulative' : 'active',
+      fadeYears: 20,
+    });
+
+    map.current.setFilter('buildings-detailed-layer', filter);
+
+    // Update opacity expression for active mode (age-based fading)
+    if (!accumulatePaths) {
+      map.current.setPaintProperty(
+        'buildings-detailed-layer',
+        'circle-opacity',
+        createOpacityExpression(year, 20)
+      );
+    } else {
+      map.current.setPaintProperty('buildings-detailed-layer', 'circle-opacity', 0.8);
     }
-  }, [filteredBuildings, filteredBuildingsDetailed]);
+  }, [currentTime, yearRange, accumulatePaths, tilesLoaded]);
 
   const buildingCount = filteredBuildings?.features.reduce(
     (sum, f) => sum + (((f.properties as Record<string, unknown>).count as number) || 1),

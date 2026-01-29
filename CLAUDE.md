@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Orrery is a timelapse visualization platform for Atlantic hurricane tracks (1851–present). It consists of two reusable libraries and a proving-ground application:
+Orrery is a timelapse visualization platform. It consists of two reusable libraries and multiple proving-ground applications:
 
 - **Fieldline** (`fieldline/`): Data acquisition and normalization layer
 - **Chrona** (`chrona/`): Rendering and animation engine using MapLibre GL JS
-- **Hurricanes** (`projects/hurricanes/`): React application demonstrating the platform
-
-**Data source**: HURDAT2 from NOAA — 6-hourly storm positions, wind speed, pressure, and status.
+- **Hurricanes** (`projects/hurricanes/`): Atlantic hurricane tracks (1851–present)
+- **Railroads** (`projects/railroads/`): US railroad network expansion
+- **SF Urban** (`projects/sf-urban/`): San Francisco building development (1848–present)
 
 ## Development Commands
 
@@ -23,8 +23,9 @@ pnpm build
 pnpm test
 pnpm lint
 
-# Run the hurricanes app
+# Run the apps
 pnpm --filter hurricanes dev
+pnpm --filter sf-urban dev
 
 # Build a specific package
 pnpm --filter fieldline build
@@ -59,6 +60,26 @@ Core abstractions:
 - **Renderer**: MapLibre GL-based visualization with multiple modes
 
 Rendering modes: cumulative tracks, active storms only, single storm, heatmap, yearly summary
+
+### SF Urban Architecture
+
+The SF Urban project visualizes 212k buildings with smooth 60fps animation using a two-tier approach:
+
+**Zoomed out (< zoom 15):** Aggregated GeoJSON clusters
+- Buildings grouped by city block + grid cell (respects street boundaries)
+- ~34k cluster points with centroid positioning
+- JavaScript filtering via `filterByTime()`
+
+**Zoomed in (>= zoom 15):** PMTiles vector tiles
+- All 212k buildings as individual points
+- GPU-evaluated filters via `map.setFilter()` — no JS loop
+- Temporal expressions in `chrona/src/core/temporal-expression.ts`
+
+**Tile generation:**
+```bash
+pnpm --filter fieldline pipeline:sf-urban        # Generate GeoJSON
+pnpm --filter fieldline pipeline:sf-urban-tiles  # Generate PMTiles (requires tippecanoe)
+```
 
 ### Saffir-Simpson Color Palette
 

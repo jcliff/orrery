@@ -7,3 +7,10 @@ export type {
   TemporalFeatureCollection,
   FilterOptions,
 } from './core/temporal-filter.js';
+
+export {
+  createTemporalFilter,
+  createOpacityExpression,
+  createTemporalFilterWithRange,
+} from './core/temporal-expression.js';
+export type { TemporalFilterOptions } from './core/temporal-expression.js';

@@ -6,6 +6,23 @@ const OUTPUT_DIR = new URL('../../data/processed/sf-urban', import.meta.url).pat
 // Grid cell size in degrees (~50m at SF latitude)
 const GRID_SIZE = 0.0005;
 
+// Extract block number from parcel number (first 4 digits)
+function getBlockId(parcelNumber: string): string {
+  return parcelNumber.slice(0, 4);
+}
+
+// Get grid cell key from coordinates
+function getGridKey(lng: number, lat: number): string {
+  const gridLng = Math.floor(lng / GRID_SIZE) * GRID_SIZE;
+  const gridLat = Math.floor(lat / GRID_SIZE) * GRID_SIZE;
+  return `${gridLng.toFixed(5)},${gridLat.toFixed(5)}`;
+}
+
+// Composite key: block + grid cell (respects block boundaries, maintains granularity)
+function getClusterKey(parcelNumber: string, lng: number, lat: number): string {
+  return `${getBlockId(parcelNumber)}:${getGridKey(lng, lat)}`;
+}
+
 interface RawParcel {
   parcel_number: string;
   year_property_built: string;
@@ -18,9 +35,11 @@ interface RawParcel {
   property_location?: string;
 }
 
-interface GridCell {
-  lng: number;
-  lat: number;
+interface BlockCluster {
+  blockId: string;
+  // Sum of coordinates for centroid calculation
+  lngSum: number;
+  latSum: number;
   useTypes: Record<string, { count: number; earliestYear: number }>;
   totalCount: number;
   earliestYear: number;
@@ -53,18 +72,6 @@ function getUseColor(use: string): string {
   return USE_COLORS[use] || '#95a5a6';
 }
 
-// Get grid cell key from coordinates
-function getGridKey(lng: number, lat: number): string {
-  const gridLng = Math.floor(lng / GRID_SIZE) * GRID_SIZE;
-  const gridLat = Math.floor(lat / GRID_SIZE) * GRID_SIZE;
-  return `${gridLng.toFixed(5)},${gridLat.toFixed(5)}`;
-}
-
-// Parse grid key back to coordinates
-function parseGridKey(key: string): [number, number] {
-  const [lng, lat] = key.split(',').map(Number);
-  return [lng + GRID_SIZE / 2, lat + GRID_SIZE / 2]; // Center of cell
-}
 
 // Round coordinate to 5 decimal places
 function roundCoord(n: number): number {
@@ -119,8 +126,9 @@ async function main() {
     console.log(`  ${hood}: ${med}`);
   }
 
-  // Second pass: process all parcels
-  const grid: Map<string, GridCell> = new Map();
+  // Second pass: process all parcels, grouping by block + grid cell
+  // This ensures clusters never cross block boundaries while maintaining granularity
+  const clusters: Map<string, BlockCluster> = new Map();
   const detailedFeatures: GeoJSONFeature[] = [];
   let knownYears = 0;
   let estimatedYears = 0;
@@ -170,71 +178,82 @@ async function main() {
       },
     });
 
-    // Add to grid aggregation
-    const key = getGridKey(lng, lat);
-    let cell = grid.get(key);
-    if (!cell) {
-      cell = {
-        lng: parseGridKey(key)[0],
-        lat: parseGridKey(key)[1],
+    // Add to cluster (block + grid cell ensures no cross-street grouping)
+    const clusterKey = getClusterKey(parcel.parcel_number, lng, lat);
+    const blockId = getBlockId(parcel.parcel_number);
+    let cluster = clusters.get(clusterKey);
+    if (!cluster) {
+      cluster = {
+        blockId,
+        lngSum: 0,
+        latSum: 0,
         useTypes: {},
         totalCount: 0,
         earliestYear: year,
         hasEstimates: false,
       };
-      grid.set(key, cell);
+      clusters.set(clusterKey, cluster);
     }
 
-    if (!cell.useTypes[use]) {
-      cell.useTypes[use] = { count: 0, earliestYear: year };
+    // Accumulate coordinates for centroid calculation
+    cluster.lngSum += lng;
+    cluster.latSum += lat;
+
+    if (!cluster.useTypes[use]) {
+      cluster.useTypes[use] = { count: 0, earliestYear: year };
     }
-    cell.useTypes[use].count++;
-    if (year < cell.useTypes[use].earliestYear) {
-      cell.useTypes[use].earliestYear = year;
+    cluster.useTypes[use].count++;
+    if (year < cluster.useTypes[use].earliestYear) {
+      cluster.useTypes[use].earliestYear = year;
     }
 
-    cell.totalCount++;
-    if (year < cell.earliestYear) {
-      cell.earliestYear = year;
+    cluster.totalCount++;
+    if (year < cluster.earliestYear) {
+      cluster.earliestYear = year;
     }
     if (estimated) {
-      cell.hasEstimates = true;
+      cluster.hasEstimates = true;
     }
   }
 
-  console.log(`\nProcessed ${detailedFeatures.length} buildings into ${grid.size} grid cells`);
+  console.log(`\nProcessed ${detailedFeatures.length} buildings into ${clusters.size} clusters (block-bounded grid cells)`);
   console.log(`  Known years: ${knownYears.toLocaleString()}`);
   console.log(`  Estimated years: ${estimatedYears.toLocaleString()}`);
 
-  // Convert grid cells to aggregated features
+  // Convert clusters to aggregated features
   const aggregatedFeatures: GeoJSONFeature[] = [];
 
-  for (const cell of grid.values()) {
+  for (const cluster of clusters.values()) {
     // Find dominant use type
     let dominantUse = '';
     let maxCount = 0;
-    for (const [use, data] of Object.entries(cell.useTypes)) {
+    for (const [use, data] of Object.entries(cluster.useTypes)) {
       if (data.count > maxCount) {
         maxCount = data.count;
         dominantUse = use;
       }
     }
 
-    const startTime = `${cell.earliestYear}-01-01T00:00:00Z`;
+    const startTime = `${cluster.earliestYear}-01-01T00:00:00Z`;
+
+    // Use centroid of actual buildings in the cluster
+    const centroidLng = cluster.lngSum / cluster.totalCount;
+    const centroidLat = cluster.latSum / cluster.totalCount;
 
     aggregatedFeatures.push({
       type: 'Feature',
       properties: {
-        year: cell.earliestYear,
+        blockId: cluster.blockId,
+        year: cluster.earliestYear,
         use: dominantUse,
-        count: cell.totalCount,
-        estimated: cell.hasEstimates,
+        count: cluster.totalCount,
+        estimated: cluster.hasEstimates,
         startTime,
         color: getUseColor(dominantUse),
       },
       geometry: {
         type: 'Point',
-        coordinates: [roundCoord(cell.lng), roundCoord(cell.lat)],
+        coordinates: [roundCoord(centroidLng), roundCoord(centroidLat)],
       },
     });
   }
@@ -252,7 +271,7 @@ async function main() {
     type: 'FeatureCollection',
     features: aggregatedFeatures,
   }));
-  console.log(`\nWrote ${aggregatedPath} (${aggregatedFeatures.length} grid cells)`);
+  console.log(`\nWrote ${aggregatedPath} (${aggregatedFeatures.length} clusters)`);
 
   // Write detailed GeoJSON
   const detailedPath = `${OUTPUT_DIR}/buildings-detailed.geojson`;

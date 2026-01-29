@@ -7,3 +7,4 @@ dist/
 fieldline/data/
 projects/*/public/*.geojson
 projects/*/public/*.json
+projects/*/public/*.pmtiles
