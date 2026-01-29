@@ -127,61 +127,31 @@ export default function App() {
     };
   }, [buildingsData, currentTime, yearRange, accumulatePaths]);
 
-  // Filter detailed buildings (same logic, for zoomed-in view)
+  // Filter detailed buildings - STATIC view based on year range only (no animation)
+  // This prevents crashes from filtering 212k features on every tick
   const filteredBuildingsDetailed = useMemo(() => {
-    // Skip filtering when zoomed out (saves CPU)
-    if (!isZoomedIn || !buildingsDetailedData || !currentTime) return null;
-
-    const currentMs = currentTime.getTime();
-    const TEN_YEARS_MS = 10 * 365 * 24 * 60 * 60 * 1000;
-    const TWENTY_YEARS_MS = 20 * 365 * 24 * 60 * 60 * 1000;
-
-    const timeFiltered = filterByTime(buildingsDetailedData, currentTime, { mode: 'cumulative' });
+    if (!isZoomedIn || !buildingsDetailedData) return null;
 
     const [startYear, endYear] = yearRange;
 
-    const features = timeFiltered.features
+    const features = buildingsDetailedData.features
       .filter((f) => {
         const year = f.properties.year as number;
-        if (year < startYear || year > endYear) return false;
-
-        if (!accumulatePaths) {
-          const startTime = new Date(f.properties.startTime as string).getTime();
-          const age = currentMs - startTime;
-          if (age > TWENTY_YEARS_MS) return false;
-        }
-
-        return true;
+        return year >= startYear && year <= endYear;
       })
-      .map((f) => {
-        let opacity = 0.8;
-
-        if (!accumulatePaths) {
-          const startTime = new Date(f.properties.startTime as string).getTime();
-          const age = currentMs - startTime;
-
-          if (age <= TEN_YEARS_MS) {
-            opacity = 0.9;
-          } else {
-            const fadeProgress = (age - TEN_YEARS_MS) / (TWENTY_YEARS_MS - TEN_YEARS_MS);
-            opacity = 0.9 * (1 - fadeProgress);
-          }
-        }
-
-        return {
-          ...f,
-          properties: {
-            ...f.properties,
-            opacity,
-          },
-        };
-      });
+      .map((f) => ({
+        ...f,
+        properties: {
+          ...f.properties,
+          opacity: 0.8,
+        },
+      }));
 
     return {
       type: 'FeatureCollection' as const,
       features,
     };
-  }, [isZoomedIn, buildingsDetailedData, currentTime, yearRange, accumulatePaths]);
+  }, [isZoomedIn, buildingsDetailedData, yearRange]);
 
   const handleYearRangeChange = useCallback((start: number, end: number) => {
     setYearRange([start, end]);
