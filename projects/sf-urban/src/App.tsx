@@ -166,9 +166,9 @@ export default function App() {
             'interpolate',
             ['linear'],
             ['zoom'],
-            10, 1,
-            14, 3,
-            18, 6,
+            10, ['*', 0.5, ['sqrt', ['get', 'count']]],
+            14, ['*', 1.5, ['sqrt', ['get', 'count']]],
+            18, ['*', 3, ['sqrt', ['get', 'count']]],
           ],
           'circle-color': ['get', 'color'],
           'circle-opacity': ['get', 'opacity'],
@@ -189,15 +189,15 @@ export default function App() {
         const props = e.features[0].properties;
         const year = props.year;
         const use = props.use || 'Unknown';
-        const neighborhood = props.neighborhood || 'Unknown';
+        const count = props.count || 1;
 
         new maplibregl.Popup()
           .setLngLat(e.lngLat)
           .setHTML(
             `
-            <strong>Built: ${year}</strong><br/>
-            Use: ${use}<br/>
-            Neighborhood: ${neighborhood}
+            <strong>${count} building${count > 1 ? 's' : ''}</strong><br/>
+            Earliest: ${year}<br/>
+            Primary use: ${use}
           `
           )
           .addTo(map.current);
@@ -250,21 +250,21 @@ export default function App() {
 }
 
 function Legend() {
-  const eras = [
-    { label: 'Pre-1860 (Gold Rush)', color: '#8b0000' },
-    { label: '1860-1880', color: '#e74c3c' },
-    { label: '1880-1906 (Victorian)', color: '#e67e22' },
-    { label: '1906-1920 (Rebuild)', color: '#f39c12' },
-    { label: '1920-1945', color: '#27ae60' },
-    { label: '1945-1970 (Post-war)', color: '#3498db' },
-    { label: '1970-2000', color: '#9b59b6' },
-    { label: '2000+', color: '#1abc9c' },
+  const useTypes = [
+    { label: 'Single Family', color: '#3498db' },
+    { label: 'Multi-Family', color: '#9b59b6' },
+    { label: 'Retail', color: '#e74c3c' },
+    { label: 'Office', color: '#e67e22' },
+    { label: 'Hotel', color: '#f39c12' },
+    { label: 'Industrial', color: '#7f8c8d' },
+    { label: 'Government', color: '#27ae60' },
+    { label: 'Mixed Use', color: '#1abc9c' },
   ];
 
   return (
     <div style={styles.legend}>
-      <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Era Built</div>
-      {eras.map(({ label, color }) => (
+      <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Land Use</div>
+      {useTypes.map(({ label, color }) => (
         <div
           key={label}
           style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}

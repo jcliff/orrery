@@ -3,10 +3,8 @@ import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 const INPUT_DIR = new URL('../../data/raw/sf-urban', import.meta.url).pathname;
 const OUTPUT_DIR = new URL('../../data/processed/sf-urban', import.meta.url).pathname;
 
-// Round coordinates to 5 decimal places (~1m precision)
-function roundCoord(coord: number): number {
-  return Math.round(coord * 100000) / 100000;
-}
+// Grid cell size in degrees (~50m at SF latitude)
+const GRID_SIZE = 0.0005;
 
 interface RawParcel {
   parcel_number: string;
@@ -17,6 +15,14 @@ interface RawParcel {
     coordinates: [number, number];
   };
   analysis_neighborhood: string;
+}
+
+interface GridCell {
+  lng: number;
+  lat: number;
+  useTypes: Record<string, { count: number; earliestYear: number }>;
+  totalCount: number;
+  earliestYear: number;
 }
 
 interface GeoJSONFeature {
@@ -33,20 +39,38 @@ interface GeoJSONFeatureCollection {
   features: GeoJSONFeature[];
 }
 
-// Color by era
-function getEraColor(year: number): string {
-  if (year < 1860) return '#8b0000';      // Pre-1860: Dark red (Gold Rush era)
-  if (year < 1880) return '#e74c3c';      // 1860-1880: Red (early growth)
-  if (year < 1906) return '#e67e22';      // 1880-1906: Orange (Victorian era)
-  if (year < 1920) return '#f39c12';      // 1906-1920: Gold (post-earthquake rebuild)
-  if (year < 1945) return '#27ae60';      // 1920-1945: Green (pre-war)
-  if (year < 1970) return '#3498db';      // 1945-1970: Blue (post-war boom)
-  if (year < 2000) return '#9b59b6';      // 1970-2000: Purple (modern)
-  return '#1abc9c';                        // 2000+: Teal (contemporary)
+// Color by use/zoning type
+const USE_COLORS: Record<string, string> = {
+  'Single Family Residential': '#3498db',    // Blue
+  'Multi-Family Residential': '#9b59b6',     // Purple
+  'Commercial Retail': '#e74c3c',            // Red
+  'Commercial Office': '#e67e22',            // Orange
+  'Commercial Hotel': '#f39c12',             // Gold
+  'Commercial Misc': '#d35400',              // Dark orange
+  'Industrial': '#7f8c8d',                   // Gray
+  'Government': '#27ae60',                   // Green
+  'Miscellaneous/Mixed-Use': '#1abc9c',      // Teal
+};
+
+function getUseColor(use: string): string {
+  return USE_COLORS[use] || '#95a5a6';
+}
+
+// Get grid cell key from coordinates
+function getGridKey(lng: number, lat: number): string {
+  const gridLng = Math.floor(lng / GRID_SIZE) * GRID_SIZE;
+  const gridLat = Math.floor(lat / GRID_SIZE) * GRID_SIZE;
+  return `${gridLng.toFixed(5)},${gridLat.toFixed(5)}`;
+}
+
+// Parse grid key back to coordinates
+function parseGridKey(key: string): [number, number] {
+  const [lng, lat] = key.split(',').map(Number);
+  return [lng + GRID_SIZE / 2, lat + GRID_SIZE / 2]; // Center of cell
 }
 
 async function main() {
-  console.log('Processing SF parcel data...');
+  console.log('Processing SF parcel data with grid aggregation...');
 
   // Read all batch files
   const files = await readdir(INPUT_DIR);
@@ -54,11 +78,9 @@ async function main() {
 
   console.log(`Found ${jsonFiles.length} batch files`);
 
-  const features: GeoJSONFeature[] = [];
-  const byDecade: Record<number, number> = {};
-  const byNeighborhood: Record<string, number> = {};
-  let minYear = Infinity;
-  let maxYear = -Infinity;
+  // Aggregate into grid cells
+  const grid: Map<string, GridCell> = new Map();
+  let totalParcels = 0;
   let skipped = 0;
 
   for (const file of jsonFiles) {
@@ -77,39 +99,92 @@ async function main() {
         continue;
       }
 
-      // Track stats
-      if (year < minYear) minYear = year;
-      if (year > maxYear) maxYear = year;
-      const decade = Math.floor(year / 10) * 10;
-      byDecade[decade] = (byDecade[decade] || 0) + 1;
-      byNeighborhood[parcel.analysis_neighborhood] = (byNeighborhood[parcel.analysis_neighborhood] || 0) + 1;
+      totalParcels++;
+      const [lng, lat] = parcel.the_geom.coordinates;
+      const key = getGridKey(lng, lat);
+      const use = parcel.use_definition;
 
-      // Use January 1st of the year as the build date
-      const startTime = `${year}-01-01T00:00:00Z`;
+      let cell = grid.get(key);
+      if (!cell) {
+        cell = {
+          lng: parseGridKey(key)[0],
+          lat: parseGridKey(key)[1],
+          useTypes: {},
+          totalCount: 0,
+          earliestYear: year,
+        };
+        grid.set(key, cell);
+      }
 
-      features.push({
-        type: 'Feature',
-        properties: {
-          id: parcel.parcel_number,
-          year,
-          use: parcel.use_definition,
-          neighborhood: parcel.analysis_neighborhood,
-          startTime,
-          color: getEraColor(year),
-        },
-        geometry: {
-          type: 'Point',
-          coordinates: [
-            roundCoord(parcel.the_geom.coordinates[0]),
-            roundCoord(parcel.the_geom.coordinates[1]),
-          ],
-        },
-      });
+      // Track use type counts and earliest year per use
+      if (!cell.useTypes[use]) {
+        cell.useTypes[use] = { count: 0, earliestYear: year };
+      }
+      cell.useTypes[use].count++;
+      if (year < cell.useTypes[use].earliestYear) {
+        cell.useTypes[use].earliestYear = year;
+      }
+
+      cell.totalCount++;
+      if (year < cell.earliestYear) {
+        cell.earliestYear = year;
+      }
     }
   }
 
-  console.log(`\nProcessed ${features.length} buildings (skipped ${skipped} invalid)`);
-  console.log(`Year range: ${minYear} - ${maxYear}`);
+  console.log(`\nAggregated ${totalParcels} buildings into ${grid.size} grid cells (skipped ${skipped} invalid)`);
+
+  // Convert grid cells to features
+  const features: GeoJSONFeature[] = [];
+
+  for (const cell of grid.values()) {
+    // Find dominant use type
+    let dominantUse = '';
+    let maxCount = 0;
+    for (const [use, data] of Object.entries(cell.useTypes)) {
+      if (data.count > maxCount) {
+        maxCount = data.count;
+        dominantUse = use;
+      }
+    }
+
+    const startTime = `${cell.earliestYear}-01-01T00:00:00Z`;
+
+    features.push({
+      type: 'Feature',
+      properties: {
+        year: cell.earliestYear,
+        use: dominantUse,
+        count: cell.totalCount,
+        startTime,
+        color: getUseColor(dominantUse),
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [
+          Math.round(cell.lng * 100000) / 100000,
+          Math.round(cell.lat * 100000) / 100000,
+        ],
+      },
+    });
+  }
+
+  // Sort by year for better rendering order
+  features.sort((a, b) => (a.properties.year as number) - (b.properties.year as number));
+
+  console.log(`Created ${features.length} grid cell features`);
+
+  // Stats by use type
+  const byUse: Record<string, number> = {};
+  for (const f of features) {
+    const use = f.properties.use as string;
+    byUse[use] = (byUse[use] || 0) + 1;
+  }
+
+  console.log('\nGrid cells by dominant use:');
+  for (const [use, count] of Object.entries(byUse).sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${use}: ${count.toLocaleString()}`);
+  }
 
   // Create output directory
   await mkdir(OUTPUT_DIR, { recursive: true });
@@ -121,19 +196,7 @@ async function main() {
     features,
   };
   await writeFile(outputPath, JSON.stringify(geojson));
-  console.log(`Wrote ${outputPath}`);
-
-  // Stats
-  console.log('\nBuildings by decade:');
-  for (const [decade, count] of Object.entries(byDecade).sort((a, b) => Number(a[0]) - Number(b[0]))) {
-    console.log(`  ${decade}s: ${count.toLocaleString()}`);
-  }
-
-  console.log('\nTop 10 neighborhoods:');
-  const sortedNeighborhoods = Object.entries(byNeighborhood).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  for (const [hood, count] of sortedNeighborhoods) {
-    console.log(`  ${hood}: ${count.toLocaleString()}`);
-  }
+  console.log(`\nWrote ${outputPath}`);
 }
 
 main().catch(console.error);
