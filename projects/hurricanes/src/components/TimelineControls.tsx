@@ -9,13 +9,13 @@ interface TimelineControlsProps {
 }
 
 const SPEED_OPTIONS = [
+  { label: '1 week/sec', value: 86400 * 7 },
+  { label: '2 weeks/sec', value: 86400 * 14 },
   { label: '1 month/sec', value: 86400 * 30 },
-  { label: '3 months/sec', value: 86400 * 90 },
-  { label: '6 months/sec', value: 86400 * 180 },
+  { label: '2 months/sec', value: 86400 * 60 },
+  { label: '1 season/sec', value: 86400 * 120 },
   { label: '1 year/sec', value: 86400 * 365 },
-  { label: '2 years/sec', value: 86400 * 365 * 2 },
   { label: '5 years/sec', value: 86400 * 365 * 5 },
-  { label: '10 years/sec', value: 86400 * 365 * 10 },
 ];
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

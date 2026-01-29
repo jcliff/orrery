@@ -11,16 +11,16 @@ export default function App() {
   const map = useRef<maplibregl.Map | null>(null);
   const [tracksData, setTracksData] = useState<TemporalFeatureCollection | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
-  const [yearRange, setYearRange] = useState<[number, number]>([1851, 2023]);
+  const [yearRange, setYearRange] = useState<[number, number]>([1941, 1970]);
 
   // Create timeline once we have data
   const timeline = useMemo(() => {
     if (!tracksData) return null;
-    // Data spans 1851-2023, only animate hurricane season (Aug-Nov)
+    // Default to a generation (1941-1970), only animate hurricane season (Aug-Nov)
     return new Timeline({
-      start: new Date('1851-08-01'),
-      end: new Date('2024-01-01'),
-      speed: 86400 * 365, // 1 year/sec
+      start: new Date('1941-08-01'),
+      end: new Date('1971-01-01'),
+      speed: 86400 * 30, // 1 month/sec - slower default
       seasonMonths: [7, 10], // Aug (7) through Nov (10), 0-indexed
     });
   }, [tracksData]);
