@@ -1,12 +1,14 @@
 {
   "name": "orrery",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "pnpm -r build",
+    "dev": "pnpm --filter hurricanes dev",
+    "pipeline": "pnpm --filter fieldline pipeline"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
 }

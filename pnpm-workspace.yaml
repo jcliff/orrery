@@ -1,1 +1,4 @@
-packages:\n  - "fieldline"\n  - "chrona"\n  - "projects/*"
+packages:
+  - "fieldline"
+  - "chrona"
+  - "projects/*"
