@@ -12,7 +12,11 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
-  chrona: {}
+  chrona:
+    devDependencies:
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
 
   fieldline:
     devDependencies:
@@ -25,6 +29,9 @@ importers:
 
   projects/hurricanes:
     dependencies:
+      chrona:
+        specifier: workspace:*
+        version: link:../../chrona
       maplibre-gl:
         specifier: ^4.1.2
         version: 4.7.1
