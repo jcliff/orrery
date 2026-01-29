@@ -15,6 +15,7 @@ interface RawParcel {
     coordinates: [number, number];
   };
   analysis_neighborhood: string;
+  property_location?: string;
 }
 
 interface GridCell {
@@ -108,12 +109,20 @@ async function main() {
       const use = parcel.use_definition;
       const startTime = `${year}-01-01T00:00:00Z`;
 
+      // Clean up address format (remove leading zeros and extra spaces)
+      const address = parcel.property_location
+        ?.replace(/^0+/, '')
+        .replace(/\s+/g, ' ')
+        .trim() || '';
+
       // Add to detailed features
       detailedFeatures.push({
         type: 'Feature',
         properties: {
           year,
           use,
+          address,
+          neighborhood: parcel.analysis_neighborhood,
           startTime,
           color: getUseColor(use),
         },

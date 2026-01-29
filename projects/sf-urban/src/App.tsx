@@ -303,13 +303,16 @@ export default function App() {
         const props = e.features[0].properties;
         const year = props.year;
         const use = props.use || 'Unknown';
+        const address = props.address || '';
+        const neighborhood = props.neighborhood || '';
 
         new maplibregl.Popup()
           .setLngLat(e.lngLat)
           .setHTML(
             `
-            <strong>Built: ${year}</strong><br/>
-            Use: ${use}
+            ${address ? `<strong>${address}</strong><br/>` : ''}
+            Built: ${year}<br/>
+            Use: ${use}${neighborhood ? `<br/>${neighborhood}` : ''}
           `
           )
           .addTo(map.current);
