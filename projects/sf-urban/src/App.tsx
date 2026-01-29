@@ -220,7 +220,10 @@ export default function App() {
     }
   }, [filteredBuildings]);
 
-  const buildingCount = filteredBuildings?.features.length ?? 0;
+  const buildingCount = filteredBuildings?.features.reduce(
+    (sum, f) => sum + ((f.properties.count as number) || 1),
+    0
+  ) ?? 0;
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
