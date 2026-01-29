@@ -78,6 +78,24 @@ function roundCoord(n: number): number {
   return Math.round(n * 100000) / 100000;
 }
 
+// Coordinate key for deduplication (condo units share same coords)
+function getCoordKey(lng: number, lat: number): string {
+  return `${roundCoord(lng)},${roundCoord(lat)}`;
+}
+
+// Represents a deduplicated building (may contain multiple condo units)
+interface Building {
+  lng: number;
+  lat: number;
+  year: number;
+  estimated: boolean;
+  use: string;
+  address: string;
+  neighborhood: string;
+  parcelNumber: string;
+  unitCount: number; // How many parcels/units at this location
+}
+
 // Calculate median of an array
 function median(arr: number[]): number {
   if (arr.length === 0) return 1900; // Default fallback
@@ -126,15 +144,16 @@ async function main() {
     console.log(`  ${hood}: ${med}`);
   }
 
-  // Second pass: process all parcels, grouping by block + grid cell
-  // This ensures clusters never cross block boundaries while maintaining granularity
-  const clusters: Map<string, BlockCluster> = new Map();
-  const detailedFeatures: GeoJSONFeature[] = [];
+  // Second pass: deduplicate parcels by coordinates
+  // Condo buildings have one parcel per unit, all at the same coordinates
+  const buildingsByCoord: Map<string, Building> = new Map();
+  let totalParcels = 0;
   let knownYears = 0;
   let estimatedYears = 0;
 
   for (const parcel of allParcels) {
     if (!parcel.the_geom) continue;
+    totalParcels++;
 
     const [lng, lat] = parcel.the_geom.coordinates;
     const use = parcel.use_definition;
@@ -152,13 +171,49 @@ async function main() {
       estimatedYears++;
     }
 
-    const startTime = `${year}-01-01T00:00:00Z`;
-
     // Clean up address format
     const address = parcel.property_location
       ?.replace(/^0+/, '')
       .replace(/\s+/g, ' ')
       .trim() || '';
+
+    // Dedupe by coordinates
+    const coordKey = getCoordKey(lng, lat);
+    const existing = buildingsByCoord.get(coordKey);
+
+    if (!existing) {
+      buildingsByCoord.set(coordKey, {
+        lng,
+        lat,
+        year,
+        estimated,
+        use,
+        address,
+        neighborhood: hood,
+        parcelNumber: parcel.parcel_number,
+        unitCount: 1,
+      });
+    } else {
+      // Merge: keep earliest year, update use if this one is earlier
+      existing.unitCount++;
+      if (year < existing.year) {
+        existing.year = year;
+        existing.estimated = estimated;
+        existing.use = use;
+        existing.address = address;
+      }
+    }
+  }
+
+  console.log(`\nDeduplicated ${totalParcels.toLocaleString()} parcels to ${buildingsByCoord.size.toLocaleString()} buildings`);
+
+  // Third pass: create features and clusters from deduplicated buildings
+  const clusters: Map<string, BlockCluster> = new Map();
+  const detailedFeatures: GeoJSONFeature[] = [];
+
+  for (const building of buildingsByCoord.values()) {
+    const { lng, lat, year, estimated, use, address, neighborhood, parcelNumber, unitCount } = building;
+    const startTime = `${year}-01-01T00:00:00Z`;
 
     // Add to detailed features
     detailedFeatures.push({
@@ -168,9 +223,10 @@ async function main() {
         estimated,
         use,
         address,
-        neighborhood: hood,
+        neighborhood,
         startTime,
         color: getUseColor(use),
+        units: unitCount, // Track how many units (for condos)
       },
       geometry: {
         type: 'Point',
@@ -179,8 +235,8 @@ async function main() {
     });
 
     // Add to cluster (block + grid cell ensures no cross-street grouping)
-    const clusterKey = getClusterKey(parcel.parcel_number, lng, lat);
-    const blockId = getBlockId(parcel.parcel_number);
+    const clusterKey = getClusterKey(parcelNumber, lng, lat);
+    const blockId = getBlockId(parcelNumber);
     let cluster = clusters.get(clusterKey);
     if (!cluster) {
       cluster = {
@@ -216,9 +272,9 @@ async function main() {
     }
   }
 
-  console.log(`\nProcessed ${detailedFeatures.length} buildings into ${clusters.size} clusters (block-bounded grid cells)`);
-  console.log(`  Known years: ${knownYears.toLocaleString()}`);
-  console.log(`  Estimated years: ${estimatedYears.toLocaleString()}`);
+  console.log(`Created ${clusters.size} clusters (block-bounded grid cells)`);
+  console.log(`  Parcels with known years: ${knownYears.toLocaleString()}`);
+  console.log(`  Parcels with estimated years: ${estimatedYears.toLocaleString()}`);
 
   // Convert clusters to aggregated features
   const aggregatedFeatures: GeoJSONFeature[] = [];
