@@ -4,18 +4,18 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { Timeline, filterByTime, type TemporalFeatureCollection } from 'chrona';
 import { TimelineControls } from './components/TimelineControls';
 
-const TRACKS_URL = '/tracks.geojson';
+const SEGMENTS_URL = '/segments.geojson';
 
 export default function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
-  const [tracksData, setTracksData] = useState<TemporalFeatureCollection | null>(null);
+  const [segmentsData, setSegmentsData] = useState<TemporalFeatureCollection | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [yearRange, setYearRange] = useState<[number, number]>([1941, 1970]);
 
   // Create timeline once we have data
   const timeline = useMemo(() => {
-    if (!tracksData) return null;
+    if (!segmentsData) return null;
     // Default to a generation (1941-1970), only animate hurricane season (Aug-Nov)
     return new Timeline({
       start: new Date('1941-08-01'),
@@ -23,7 +23,7 @@ export default function App() {
       speed: 86400 * 30, // 1 month/sec - slower default
       seasonMonths: [7, 10], // Aug (7) through Nov (10), 0-indexed
     });
-  }, [tracksData]);
+  }, [segmentsData]);
 
   // Subscribe to timeline ticks
   useEffect(() => {
@@ -44,19 +44,19 @@ export default function App() {
     };
   }, [timeline]);
 
-  // Load tracks data
+  // Load segments data
   useEffect(() => {
-    fetch(TRACKS_URL)
+    fetch(SEGMENTS_URL)
       .then((res) => res.json())
-      .then((data) => setTracksData(data as TemporalFeatureCollection));
+      .then((data) => setSegmentsData(data as TemporalFeatureCollection));
   }, []);
 
-  // Filter tracks based on current time AND year range
-  const filteredTracks = useMemo(() => {
-    if (!tracksData || !currentTime) return null;
+  // Filter segments based on current time AND year range
+  const filteredSegments = useMemo(() => {
+    if (!segmentsData || !currentTime) return null;
 
     // First filter by time (cumulative)
-    const timeFiltered = filterByTime(tracksData, currentTime, { mode: 'cumulative' });
+    const timeFiltered = filterByTime(segmentsData, currentTime, { mode: 'cumulative' });
 
     // Then filter by year range
     const [startYear, endYear] = yearRange;
@@ -67,7 +67,7 @@ export default function App() {
         return year >= startYear && year <= endYear;
       }),
     };
-  }, [tracksData, currentTime, yearRange]);
+  }, [segmentsData, currentTime, yearRange]);
 
   const handleYearRangeChange = useCallback((start: number, end: number) => {
     setYearRange([start, end]);
@@ -157,10 +157,10 @@ export default function App() {
         if (!e.features || !e.features[0] || !map.current) return;
 
         const props = e.features[0].properties;
-        const name = props.name || 'Unnamed';
+        const name = props.stormName || 'Unnamed';
         const year = props.year;
         const category = props.category;
-        const maxWind = props.maxWind;
+        const wind = props.wind;
 
         new maplibregl.Popup()
           .setLngLat(e.lngLat)
@@ -168,7 +168,7 @@ export default function App() {
             `
             <strong>${name} (${year})</strong><br/>
             Category: ${category}<br/>
-            Max Wind: ${maxWind} kt
+            Wind: ${wind} kt
           `
           )
           .addTo(map.current);
@@ -181,17 +181,22 @@ export default function App() {
     };
   }, []);
 
-  // Update map data when filtered tracks change
+  // Update map data when filtered segments change
   useEffect(() => {
-    if (!map.current || !filteredTracks) return;
+    if (!map.current || !filteredSegments) return;
 
     const source = map.current.getSource('hurricane-tracks') as maplibregl.GeoJSONSource;
     if (source) {
-      source.setData(filteredTracks as GeoJSON.FeatureCollection);
+      source.setData(filteredSegments as GeoJSON.FeatureCollection);
     }
-  }, [filteredTracks]);
+  }, [filteredSegments]);
 
-  const stormCount = filteredTracks?.features.length ?? 0;
+  // Count unique storms from segments
+  const stormCount = useMemo(() => {
+    if (!filteredSegments) return 0;
+    const stormIds = new Set(filteredSegments.features.map(f => f.properties.stormId));
+    return stormIds.size;
+  }, [filteredSegments]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>

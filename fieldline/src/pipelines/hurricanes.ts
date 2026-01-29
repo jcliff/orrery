@@ -106,6 +106,66 @@ function createTracksGeoJSON(storms: Storm[]): GeoJSONFeatureCollection {
   };
 }
 
+// Create segmented tracks where each segment is colored by intensity
+interface SegmentFeature extends GeoJSONFeature {
+  properties: {
+    stormId: string;
+    stormName: string | null;
+    year: number;
+    wind: number;
+    category: number;
+    color: string;
+    startTime: string;
+    endTime: string;
+  };
+  geometry: {
+    type: 'LineString';
+    coordinates: [[number, number], [number, number]];
+  };
+}
+
+function stormToSegmentFeatures(storm: Storm): SegmentFeature[] {
+  const segments: SegmentFeature[] = [];
+
+  for (let i = 0; i < storm.track.length - 1; i++) {
+    const p1 = storm.track[i];
+    const p2 = storm.track[i + 1];
+
+    // Use the intensity at the start of the segment
+    const category = windToCategory(p1.wind);
+
+    segments.push({
+      type: 'Feature',
+      properties: {
+        stormId: storm.id,
+        stormName: storm.name,
+        year: storm.year,
+        wind: p1.wind,
+        category,
+        color: CATEGORY_COLORS[category] || CATEGORY_COLORS[0],
+        startTime: p1.timestamp,
+        endTime: p2.timestamp,
+      },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [p1.lon, p1.lat],
+          [p2.lon, p2.lat],
+        ],
+      },
+    });
+  }
+
+  return segments;
+}
+
+function createSegmentsGeoJSON(storms: Storm[]): GeoJSONFeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: storms.flatMap(stormToSegmentFeatures),
+  };
+}
+
 async function main() {
   console.log('Fetching HURDAT2 data from NOAA...');
   const data = await fetchHurdat2();
@@ -147,6 +207,12 @@ async function main() {
   const pointsGeoJSON = createPointsGeoJSON(atlanticStorms);
   await writeFile(pointsPath, JSON.stringify(pointsGeoJSON));
   console.log(`Wrote ${pointsPath} (${pointsGeoJSON.features.length} points)`);
+
+  // Export segments.geojson (track segments colored by intensity)
+  const segmentsPath = `${OUTPUT_DIR}/segments.geojson`;
+  const segmentsGeoJSON = createSegmentsGeoJSON(atlanticStorms);
+  await writeFile(segmentsPath, JSON.stringify(segmentsGeoJSON));
+  console.log(`Wrote ${segmentsPath} (${segmentsGeoJSON.features.length} segments)`);
 
   // Stats
   const byCategory = atlanticStorms.reduce((acc, s) => {
