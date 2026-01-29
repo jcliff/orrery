@@ -298,6 +298,7 @@ export default function App() {
 
         const props = e.features[0].properties;
         const year = props.year;
+        const estimated = props.estimated;
         const use = props.use || 'Unknown';
         const count = props.count || 1;
 
@@ -306,7 +307,7 @@ export default function App() {
           .setHTML(
             `
             <strong>${count} building${count > 1 ? 's' : ''}</strong><br/>
-            Earliest: ${year}<br/>
+            Earliest: ${year}${estimated ? ' (includes estimates)' : ''}<br/>
             Primary use: ${use}
           `
           )
@@ -319,6 +320,7 @@ export default function App() {
 
         const props = e.features[0].properties;
         const year = props.year;
+        const estimated = props.estimated;
         const use = props.use || 'Unknown';
         const address = props.address || '';
         const neighborhood = props.neighborhood || '';
@@ -328,7 +330,7 @@ export default function App() {
           .setHTML(
             `
             ${address ? `<strong>${address}</strong><br/>` : ''}
-            Built: ${year}<br/>
+            Built: ${estimated ? '~' : ''}${year}${estimated ? ' (est.)' : ''}<br/>
             Use: ${use}${neighborhood ? `<br/>${neighborhood}` : ''}
           `
           )

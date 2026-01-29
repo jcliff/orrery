@@ -24,6 +24,7 @@ interface GridCell {
   useTypes: Record<string, { count: number; earliestYear: number }>;
   totalCount: number;
   earliestYear: number;
+  hasEstimates: boolean;
 }
 
 interface GeoJSONFeature {
@@ -33,11 +34,6 @@ interface GeoJSONFeature {
     type: string;
     coordinates: number[];
   };
-}
-
-interface GeoJSONFeatureCollection {
-  type: 'FeatureCollection';
-  features: GeoJSONFeature[];
 }
 
 // Color by use/zoning type
@@ -75,6 +71,14 @@ function roundCoord(n: number): number {
   return Math.round(n * 100000) / 100000;
 }
 
+// Calculate median of an array
+function median(arr: number[]): number {
+  if (arr.length === 0) return 1900; // Default fallback
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
 async function main() {
   console.log('Processing SF parcel data...');
 
@@ -84,84 +88,123 @@ async function main() {
 
   console.log(`Found ${jsonFiles.length} batch files`);
 
-  // Collect both individual buildings AND aggregate into grid cells
-  const grid: Map<string, GridCell> = new Map();
-  const detailedFeatures: GeoJSONFeature[] = [];
-  let skipped = 0;
+  // First pass: collect years by neighborhood for median calculation
+  const yearsByNeighborhood: Record<string, number[]> = {};
+  const allParcels: RawParcel[] = [];
 
   for (const file of jsonFiles) {
     const path = `${INPUT_DIR}/${file}`;
     const content = await readFile(path, 'utf-8');
     const parcels: RawParcel[] = JSON.parse(content);
-
-    console.log(`Processing ${file}: ${parcels.length} parcels`);
+    allParcels.push(...parcels);
 
     for (const parcel of parcels) {
       const year = parseInt(parcel.year_property_built, 10);
-
-      // Skip invalid years
-      if (isNaN(year) || year < 1800 || year > 2025) {
-        skipped++;
-        continue;
-      }
-
-      const [lng, lat] = parcel.the_geom.coordinates;
-      const use = parcel.use_definition;
-      const startTime = `${year}-01-01T00:00:00Z`;
-
-      // Clean up address format (remove leading zeros and extra spaces)
-      const address = parcel.property_location
-        ?.replace(/^0+/, '')
-        .replace(/\s+/g, ' ')
-        .trim() || '';
-
-      // Add to detailed features
-      detailedFeatures.push({
-        type: 'Feature',
-        properties: {
-          year,
-          use,
-          address,
-          neighborhood: parcel.analysis_neighborhood,
-          startTime,
-          color: getUseColor(use),
-        },
-        geometry: {
-          type: 'Point',
-          coordinates: [roundCoord(lng), roundCoord(lat)],
-        },
-      });
-
-      // Add to grid aggregation
-      const key = getGridKey(lng, lat);
-      let cell = grid.get(key);
-      if (!cell) {
-        cell = {
-          lng: parseGridKey(key)[0],
-          lat: parseGridKey(key)[1],
-          useTypes: {},
-          totalCount: 0,
-          earliestYear: year,
-        };
-        grid.set(key, cell);
-      }
-
-      if (!cell.useTypes[use]) {
-        cell.useTypes[use] = { count: 0, earliestYear: year };
-      }
-      cell.useTypes[use].count++;
-      if (year < cell.useTypes[use].earliestYear) {
-        cell.useTypes[use].earliestYear = year;
-      }
-
-      cell.totalCount++;
-      if (year < cell.earliestYear) {
-        cell.earliestYear = year;
+      if (!isNaN(year) && year >= 1800 && year <= 2025) {
+        const hood = parcel.analysis_neighborhood || 'Unknown';
+        if (!yearsByNeighborhood[hood]) yearsByNeighborhood[hood] = [];
+        yearsByNeighborhood[hood].push(year);
       }
     }
   }
 
-  console.log(`\nProcessed ${detailedFeatures.length} buildings into ${grid.size} grid cells (skipped ${skipped} invalid)`);
+  // Calculate median year per neighborhood
+  const medianByNeighborhood: Record<string, number> = {};
+  for (const [hood, years] of Object.entries(yearsByNeighborhood)) {
+    medianByNeighborhood[hood] = median(years);
+  }
+
+  console.log('\nNeighborhood median years (for estimates):');
+  for (const [hood, med] of Object.entries(medianByNeighborhood).sort((a, b) => a[1] - b[1])) {
+    console.log(`  ${hood}: ${med}`);
+  }
+
+  // Second pass: process all parcels
+  const grid: Map<string, GridCell> = new Map();
+  const detailedFeatures: GeoJSONFeature[] = [];
+  let knownYears = 0;
+  let estimatedYears = 0;
+
+  for (const parcel of allParcels) {
+    if (!parcel.the_geom) continue;
+
+    const [lng, lat] = parcel.the_geom.coordinates;
+    const use = parcel.use_definition;
+    const hood = parcel.analysis_neighborhood || 'Unknown';
+
+    // Determine year (known or estimated)
+    const rawYear = parseInt(parcel.year_property_built, 10);
+    const hasKnownYear = !isNaN(rawYear) && rawYear >= 1800 && rawYear <= 2025;
+    const year = hasKnownYear ? rawYear : (medianByNeighborhood[hood] || 1900);
+    const estimated = !hasKnownYear;
+
+    if (hasKnownYear) {
+      knownYears++;
+    } else {
+      estimatedYears++;
+    }
+
+    const startTime = `${year}-01-01T00:00:00Z`;
+
+    // Clean up address format
+    const address = parcel.property_location
+      ?.replace(/^0+/, '')
+      .replace(/\s+/g, ' ')
+      .trim() || '';
+
+    // Add to detailed features
+    detailedFeatures.push({
+      type: 'Feature',
+      properties: {
+        year,
+        estimated,
+        use,
+        address,
+        neighborhood: hood,
+        startTime,
+        color: getUseColor(use),
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [roundCoord(lng), roundCoord(lat)],
+      },
+    });
+
+    // Add to grid aggregation
+    const key = getGridKey(lng, lat);
+    let cell = grid.get(key);
+    if (!cell) {
+      cell = {
+        lng: parseGridKey(key)[0],
+        lat: parseGridKey(key)[1],
+        useTypes: {},
+        totalCount: 0,
+        earliestYear: year,
+        hasEstimates: false,
+      };
+      grid.set(key, cell);
+    }
+
+    if (!cell.useTypes[use]) {
+      cell.useTypes[use] = { count: 0, earliestYear: year };
+    }
+    cell.useTypes[use].count++;
+    if (year < cell.useTypes[use].earliestYear) {
+      cell.useTypes[use].earliestYear = year;
+    }
+
+    cell.totalCount++;
+    if (year < cell.earliestYear) {
+      cell.earliestYear = year;
+    }
+    if (estimated) {
+      cell.hasEstimates = true;
+    }
+  }
+
+  console.log(`\nProcessed ${detailedFeatures.length} buildings into ${grid.size} grid cells`);
+  console.log(`  Known years: ${knownYears.toLocaleString()}`);
+  console.log(`  Estimated years: ${estimatedYears.toLocaleString()}`);
 
   // Convert grid cells to aggregated features
   const aggregatedFeatures: GeoJSONFeature[] = [];
@@ -185,6 +228,7 @@ async function main() {
         year: cell.earliestYear,
         use: dominantUse,
         count: cell.totalCount,
+        estimated: cell.hasEstimates,
         startTime,
         color: getUseColor(dominantUse),
       },
@@ -199,22 +243,10 @@ async function main() {
   detailedFeatures.sort((a, b) => (a.properties.year as number) - (b.properties.year as number));
   aggregatedFeatures.sort((a, b) => (a.properties.year as number) - (b.properties.year as number));
 
-  // Stats by use type
-  const byUse: Record<string, number> = {};
-  for (const f of aggregatedFeatures) {
-    const use = f.properties.use as string;
-    byUse[use] = (byUse[use] || 0) + 1;
-  }
-
-  console.log('\nGrid cells by dominant use:');
-  for (const [use, count] of Object.entries(byUse).sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${use}: ${count.toLocaleString()}`);
-  }
-
   // Create output directory
   await mkdir(OUTPUT_DIR, { recursive: true });
 
-  // Write aggregated GeoJSON (for zoomed out view)
+  // Write aggregated GeoJSON
   const aggregatedPath = `${OUTPUT_DIR}/buildings.geojson`;
   await writeFile(aggregatedPath, JSON.stringify({
     type: 'FeatureCollection',
@@ -222,7 +254,7 @@ async function main() {
   }));
   console.log(`\nWrote ${aggregatedPath} (${aggregatedFeatures.length} grid cells)`);
 
-  // Write detailed GeoJSON (for zoomed in view)
+  // Write detailed GeoJSON
   const detailedPath = `${OUTPUT_DIR}/buildings-detailed.geojson`;
   await writeFile(detailedPath, JSON.stringify({
     type: 'FeatureCollection',

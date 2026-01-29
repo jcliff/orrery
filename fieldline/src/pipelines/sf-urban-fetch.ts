@@ -14,7 +14,8 @@ const FIELDS = [
 
 async function fetchBatch(offset: number): Promise<unknown[]> {
   // Filter to 2024 tax year to get unique properties (not duplicates across years)
-  const where = encodeURIComponent("closed_roll_year='2024' AND the_geom IS NOT NULL AND year_property_built IS NOT NULL");
+  // Include ALL parcels - even those without year_property_built (we'll estimate those)
+  const where = encodeURIComponent("closed_roll_year='2024' AND the_geom IS NOT NULL");
   const url = `${API_URL}?$select=${FIELDS}&$limit=${BATCH_SIZE}&$offset=${offset}&$where=${where}`;
   console.log(`Fetching offset ${offset}...`);
 
