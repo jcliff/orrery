@@ -69,8 +69,13 @@ function parseGridKey(key: string): [number, number] {
   return [lng + GRID_SIZE / 2, lat + GRID_SIZE / 2]; // Center of cell
 }
 
+// Round coordinate to 5 decimal places
+function roundCoord(n: number): number {
+  return Math.round(n * 100000) / 100000;
+}
+
 async function main() {
-  console.log('Processing SF parcel data with grid aggregation...');
+  console.log('Processing SF parcel data...');
 
   // Read all batch files
   const files = await readdir(INPUT_DIR);
@@ -78,9 +83,9 @@ async function main() {
 
   console.log(`Found ${jsonFiles.length} batch files`);
 
-  // Aggregate into grid cells
+  // Collect both individual buildings AND aggregate into grid cells
   const grid: Map<string, GridCell> = new Map();
-  let totalParcels = 0;
+  const detailedFeatures: GeoJSONFeature[] = [];
   let skipped = 0;
 
   for (const file of jsonFiles) {
@@ -99,11 +104,27 @@ async function main() {
         continue;
       }
 
-      totalParcels++;
       const [lng, lat] = parcel.the_geom.coordinates;
-      const key = getGridKey(lng, lat);
       const use = parcel.use_definition;
+      const startTime = `${year}-01-01T00:00:00Z`;
 
+      // Add to detailed features
+      detailedFeatures.push({
+        type: 'Feature',
+        properties: {
+          year,
+          use,
+          startTime,
+          color: getUseColor(use),
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [roundCoord(lng), roundCoord(lat)],
+        },
+      });
+
+      // Add to grid aggregation
+      const key = getGridKey(lng, lat);
       let cell = grid.get(key);
       if (!cell) {
         cell = {
@@ -116,7 +137,6 @@ async function main() {
         grid.set(key, cell);
       }
 
-      // Track use type counts and earliest year per use
       if (!cell.useTypes[use]) {
         cell.useTypes[use] = { count: 0, earliestYear: year };
       }
@@ -132,10 +152,10 @@ async function main() {
     }
   }
 
-  console.log(`\nAggregated ${totalParcels} buildings into ${grid.size} grid cells (skipped ${skipped} invalid)`);
+  console.log(`\nProcessed ${detailedFeatures.length} buildings into ${grid.size} grid cells (skipped ${skipped} invalid)`);
 
-  // Convert grid cells to features
-  const features: GeoJSONFeature[] = [];
+  // Convert grid cells to aggregated features
+  const aggregatedFeatures: GeoJSONFeature[] = [];
 
   for (const cell of grid.values()) {
     // Find dominant use type
@@ -150,7 +170,7 @@ async function main() {
 
     const startTime = `${cell.earliestYear}-01-01T00:00:00Z`;
 
-    features.push({
+    aggregatedFeatures.push({
       type: 'Feature',
       properties: {
         year: cell.earliestYear,
@@ -161,22 +181,18 @@ async function main() {
       },
       geometry: {
         type: 'Point',
-        coordinates: [
-          Math.round(cell.lng * 100000) / 100000,
-          Math.round(cell.lat * 100000) / 100000,
-        ],
+        coordinates: [roundCoord(cell.lng), roundCoord(cell.lat)],
       },
     });
   }
 
-  // Sort by year for better rendering order
-  features.sort((a, b) => (a.properties.year as number) - (b.properties.year as number));
-
-  console.log(`Created ${features.length} grid cell features`);
+  // Sort by year
+  detailedFeatures.sort((a, b) => (a.properties.year as number) - (b.properties.year as number));
+  aggregatedFeatures.sort((a, b) => (a.properties.year as number) - (b.properties.year as number));
 
   // Stats by use type
   const byUse: Record<string, number> = {};
-  for (const f of features) {
+  for (const f of aggregatedFeatures) {
     const use = f.properties.use as string;
     byUse[use] = (byUse[use] || 0) + 1;
   }
@@ -189,14 +205,21 @@ async function main() {
   // Create output directory
   await mkdir(OUTPUT_DIR, { recursive: true });
 
-  // Write GeoJSON
-  const outputPath = `${OUTPUT_DIR}/buildings.geojson`;
-  const geojson: GeoJSONFeatureCollection = {
+  // Write aggregated GeoJSON (for zoomed out view)
+  const aggregatedPath = `${OUTPUT_DIR}/buildings.geojson`;
+  await writeFile(aggregatedPath, JSON.stringify({
     type: 'FeatureCollection',
-    features,
-  };
-  await writeFile(outputPath, JSON.stringify(geojson));
-  console.log(`\nWrote ${outputPath}`);
+    features: aggregatedFeatures,
+  }));
+  console.log(`\nWrote ${aggregatedPath} (${aggregatedFeatures.length} grid cells)`);
+
+  // Write detailed GeoJSON (for zoomed in view)
+  const detailedPath = `${OUTPUT_DIR}/buildings-detailed.geojson`;
+  await writeFile(detailedPath, JSON.stringify({
+    type: 'FeatureCollection',
+    features: detailedFeatures,
+  }));
+  console.log(`Wrote ${detailedPath} (${detailedFeatures.length} buildings)`);
 }
 
 main().catch(console.error);

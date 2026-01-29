@@ -5,11 +5,14 @@ import { Timeline, filterByTime, type TemporalFeatureCollection } from 'chrona';
 import { TimelineControls } from './components/TimelineControls';
 
 const BUILDINGS_URL = '/buildings.geojson';
+const BUILDINGS_DETAILED_URL = '/buildings-detailed.geojson';
+const ZOOM_THRESHOLD = 15; // Switch to detailed view at this zoom level
 
 export default function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [buildingsData, setBuildingsData] = useState<TemporalFeatureCollection | null>(null);
+  const [buildingsDetailedData, setBuildingsDetailedData] = useState<TemporalFeatureCollection | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [yearRange, setYearRange] = useState<[number, number]>([1848, 1950]);
   const [accumulatePaths, setAccumulatePaths] = useState(true);
@@ -49,11 +52,15 @@ export default function App() {
     };
   }, [timeline]);
 
-  // Load buildings data
+  // Load buildings data (both aggregated and detailed)
   useEffect(() => {
     fetch(BUILDINGS_URL)
       .then((res) => res.json())
       .then((data) => setBuildingsData(data as TemporalFeatureCollection));
+
+    fetch(BUILDINGS_DETAILED_URL)
+      .then((res) => res.json())
+      .then((data) => setBuildingsDetailedData(data as TemporalFeatureCollection));
   }, []);
 
   // Filter buildings based on current time AND year range
@@ -111,6 +118,61 @@ export default function App() {
     };
   }, [buildingsData, currentTime, yearRange, accumulatePaths]);
 
+  // Filter detailed buildings (same logic, for zoomed-in view)
+  const filteredBuildingsDetailed = useMemo(() => {
+    if (!buildingsDetailedData || !currentTime) return null;
+
+    const currentMs = currentTime.getTime();
+    const TEN_YEARS_MS = 10 * 365 * 24 * 60 * 60 * 1000;
+    const TWENTY_YEARS_MS = 20 * 365 * 24 * 60 * 60 * 1000;
+
+    const timeFiltered = filterByTime(buildingsDetailedData, currentTime, { mode: 'cumulative' });
+
+    const [startYear, endYear] = yearRange;
+
+    const features = timeFiltered.features
+      .filter((f) => {
+        const year = f.properties.year as number;
+        if (year < startYear || year > endYear) return false;
+
+        if (!accumulatePaths) {
+          const startTime = new Date(f.properties.startTime as string).getTime();
+          const age = currentMs - startTime;
+          if (age > TWENTY_YEARS_MS) return false;
+        }
+
+        return true;
+      })
+      .map((f) => {
+        let opacity = 0.8;
+
+        if (!accumulatePaths) {
+          const startTime = new Date(f.properties.startTime as string).getTime();
+          const age = currentMs - startTime;
+
+          if (age <= TEN_YEARS_MS) {
+            opacity = 0.9;
+          } else {
+            const fadeProgress = (age - TEN_YEARS_MS) / (TWENTY_YEARS_MS - TEN_YEARS_MS);
+            opacity = 0.9 * (1 - fadeProgress);
+          }
+        }
+
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            opacity,
+          },
+        };
+      });
+
+    return {
+      type: 'FeatureCollection' as const,
+      features,
+    };
+  }, [buildingsDetailedData, currentTime, yearRange, accumulatePaths]);
+
   const handleYearRangeChange = useCallback((start: number, end: number) => {
     setYearRange([start, end]);
   }, []);
@@ -152,15 +214,24 @@ export default function App() {
     map.current.on('load', () => {
       if (!map.current) return;
 
+      // Aggregated source (for zoomed out)
       map.current.addSource('buildings', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       });
 
+      // Detailed source (for zoomed in)
+      map.current.addSource('buildings-detailed', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      // Aggregated layer (shown when zoomed out)
       map.current.addLayer({
         id: 'buildings-layer',
         type: 'circle',
         source: 'buildings',
+        maxzoom: ZOOM_THRESHOLD,
         paint: {
           'circle-radius': [
             'interpolate',
@@ -168,21 +239,43 @@ export default function App() {
             ['zoom'],
             10, ['*', 0.5, ['sqrt', ['get', 'count']]],
             14, ['*', 1.5, ['sqrt', ['get', 'count']]],
-            18, ['*', 3, ['sqrt', ['get', 'count']]],
           ],
           'circle-color': ['get', 'color'],
           'circle-opacity': ['get', 'opacity'],
         },
       });
 
-      map.current.on('mouseenter', 'buildings-layer', () => {
-        if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+      // Detailed layer (shown when zoomed in)
+      map.current.addLayer({
+        id: 'buildings-detailed-layer',
+        type: 'circle',
+        source: 'buildings-detailed',
+        minzoom: ZOOM_THRESHOLD,
+        paint: {
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            15, 2,
+            18, 5,
+          ],
+          'circle-color': ['get', 'color'],
+          'circle-opacity': ['get', 'opacity'],
+        },
       });
 
-      map.current.on('mouseleave', 'buildings-layer', () => {
-        if (map.current) map.current.getCanvas().style.cursor = '';
-      });
+      // Mouse events for both layers
+      for (const layerId of ['buildings-layer', 'buildings-detailed-layer']) {
+        map.current.on('mouseenter', layerId, () => {
+          if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+        });
 
+        map.current.on('mouseleave', layerId, () => {
+          if (map.current) map.current.getCanvas().style.cursor = '';
+        });
+      }
+
+      // Click handler for aggregated layer
       map.current.on('click', 'buildings-layer', (e) => {
         if (!e.features || !e.features[0] || !map.current) return;
 
@@ -202,6 +295,25 @@ export default function App() {
           )
           .addTo(map.current);
       });
+
+      // Click handler for detailed layer
+      map.current.on('click', 'buildings-detailed-layer', (e) => {
+        if (!e.features || !e.features[0] || !map.current) return;
+
+        const props = e.features[0].properties;
+        const year = props.year;
+        const use = props.use || 'Unknown';
+
+        new maplibregl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `
+            <strong>Built: ${year}</strong><br/>
+            Use: ${use}
+          `
+          )
+          .addTo(map.current);
+      });
     });
 
     return () => {
@@ -210,18 +322,27 @@ export default function App() {
     };
   }, []);
 
-  // Update map data
+  // Update map data (both aggregated and detailed sources)
   useEffect(() => {
-    if (!map.current || !filteredBuildings) return;
+    if (!map.current) return;
 
-    const source = map.current.getSource('buildings') as maplibregl.GeoJSONSource;
-    if (source) {
-      source.setData(filteredBuildings as GeoJSON.FeatureCollection);
+    if (filteredBuildings) {
+      const source = map.current.getSource('buildings') as maplibregl.GeoJSONSource;
+      if (source) {
+        source.setData(filteredBuildings as GeoJSON.FeatureCollection);
+      }
     }
-  }, [filteredBuildings]);
+
+    if (filteredBuildingsDetailed) {
+      const detailedSource = map.current.getSource('buildings-detailed') as maplibregl.GeoJSONSource;
+      if (detailedSource) {
+        detailedSource.setData(filteredBuildingsDetailed as GeoJSON.FeatureCollection);
+      }
+    }
+  }, [filteredBuildings, filteredBuildingsDetailed]);
 
   const buildingCount = filteredBuildings?.features.reduce(
-    (sum, f) => sum + ((f.properties.count as number) || 1),
+    (sum, f) => sum + (((f.properties as Record<string, unknown>).count as number) || 1),
     0
   ) ?? 0;
 
