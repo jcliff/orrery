@@ -100,7 +100,7 @@ export function TimelineControls({ timeline, minYear = 1851, maxYear = 2023, onY
     const clampedYear = Math.max(minYear, Math.min(endYear - 1, year));
     setStartYear(clampedYear);
     timeline.setRange(
-      new Date(`${clampedYear}-08-01`),
+      new Date(`${clampedYear}-06-01`),
       new Date(`${endYear}-12-01`)
     );
     onYearRangeChange?.(clampedYear, endYear);
@@ -110,7 +110,7 @@ export function TimelineControls({ timeline, minYear = 1851, maxYear = 2023, onY
     const clampedYear = Math.max(startYear + 1, Math.min(maxYear, year));
     setEndYear(clampedYear);
     timeline.setRange(
-      new Date(`${startYear}-08-01`),
+      new Date(`${startYear}-06-01`),
       new Date(`${clampedYear}-12-01`)
     );
     onYearRangeChange?.(startYear, clampedYear);
@@ -210,7 +210,7 @@ export function TimelineControls({ timeline, minYear = 1851, maxYear = 2023, onY
       </div>
 
       <div style={styles.seasonNote}>
-        Hurricane season: Aug - Nov
+        Hurricane season: Jun - Nov
       </div>
     </div>
   );

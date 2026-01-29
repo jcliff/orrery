@@ -5,23 +5,42 @@ import { Timeline, filterByTime, type TemporalFeatureCollection } from 'chrona';
 import { TimelineControls } from './components/TimelineControls';
 
 const SEGMENTS_URL = '/segments.geojson';
+const POINTS_URL = '/points.geojson';
+
+interface PointFeature {
+  type: 'Feature';
+  properties: {
+    stormId: string;
+    stormName: string | null;
+    timestamp: string;
+    wind: number;
+    category: number;
+    color: string;
+  };
+  geometry: {
+    type: 'Point';
+    coordinates: [number, number];
+  };
+}
 
 export default function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
+  const pulseAnimation = useRef<number | null>(null);
   const [segmentsData, setSegmentsData] = useState<TemporalFeatureCollection | null>(null);
+  const [pointsData, setPointsData] = useState<PointFeature[] | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [yearRange, setYearRange] = useState<[number, number]>([1941, 1970]);
 
   // Create timeline once we have data
   const timeline = useMemo(() => {
     if (!segmentsData) return null;
-    // Default to a generation (1941-1970), only animate hurricane season (Aug-Nov)
+    // Default to a generation (1941-1970), only animate hurricane season (Jun-Nov)
     return new Timeline({
-      start: new Date('1941-08-01'),
+      start: new Date('1941-06-01'),
       end: new Date('1971-01-01'),
       speed: 86400 * 30, // 1 month/sec - slower default
-      seasonMonths: [7, 10], // Aug (7) through Nov (10), 0-indexed
+      seasonMonths: [5, 10], // Jun (5) through Nov (10), 0-indexed
     });
   }, [segmentsData]);
 
@@ -44,11 +63,15 @@ export default function App() {
     };
   }, [timeline]);
 
-  // Load segments data
+  // Load segments and points data
   useEffect(() => {
     fetch(SEGMENTS_URL)
       .then((res) => res.json())
       .then((data) => setSegmentsData(data as TemporalFeatureCollection));
+
+    fetch(POINTS_URL)
+      .then((res) => res.json())
+      .then((data) => setPointsData((data as { features: PointFeature[] }).features));
   }, []);
 
   // Filter segments based on current time AND year range
@@ -72,6 +95,56 @@ export default function App() {
   const handleYearRangeChange = useCallback((start: number, end: number) => {
     setYearRange([start, end]);
   }, []);
+
+  // Compute active storm positions (current position of storms that are ongoing)
+  const activeStormPositions = useMemo(() => {
+    if (!pointsData || !currentTime) return null;
+
+    const currentMs = currentTime.getTime();
+    const [startYear, endYear] = yearRange;
+
+    // Group points by storm
+    const stormPoints = new Map<string, PointFeature[]>();
+    for (const point of pointsData) {
+      const year = new Date(point.properties.timestamp).getFullYear();
+      if (year < startYear || year > endYear) continue;
+
+      const id = point.properties.stormId;
+      if (!stormPoints.has(id)) {
+        stormPoints.set(id, []);
+      }
+      stormPoints.get(id)!.push(point);
+    }
+
+    // For each storm, find if it's active and get current position
+    const activePositions: PointFeature[] = [];
+
+    for (const [, points] of stormPoints) {
+      // Points are in chronological order
+      const firstTime = new Date(points[0].properties.timestamp).getTime();
+      const lastTime = new Date(points[points.length - 1].properties.timestamp).getTime();
+
+      // Storm is active if current time is within its lifespan
+      if (currentMs >= firstTime && currentMs <= lastTime) {
+        // Find the most recent point at or before current time
+        let currentPoint = points[0];
+        for (const point of points) {
+          const pointTime = new Date(point.properties.timestamp).getTime();
+          if (pointTime <= currentMs) {
+            currentPoint = point;
+          } else {
+            break;
+          }
+        }
+        activePositions.push(currentPoint);
+      }
+    }
+
+    return {
+      type: 'FeatureCollection' as const,
+      features: activePositions,
+    };
+  }, [pointsData, currentTime, yearRange]);
 
   // Initialize map
   useEffect(() => {
@@ -173,6 +246,49 @@ export default function App() {
           )
           .addTo(map.current);
       });
+
+      // Add source for active storm positions
+      map.current.addSource('active-storms', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      // Outer pulse ring (animated)
+      map.current.addLayer({
+        id: 'active-storms-pulse',
+        type: 'circle',
+        source: 'active-storms',
+        paint: {
+          'circle-radius': 20,
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.3,
+          'circle-stroke-width': 0,
+        },
+      });
+
+      // Inner solid dot
+      map.current.addLayer({
+        id: 'active-storms-dot',
+        type: 'circle',
+        source: 'active-storms',
+        paint: {
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['get', 'category'],
+            0, 6,
+            1, 7,
+            2, 8,
+            3, 9,
+            4, 10,
+            5, 12,
+          ],
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 1,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': 'white',
+        },
+      });
     });
 
     return () => {
@@ -190,6 +306,41 @@ export default function App() {
       source.setData(filteredSegments as GeoJSON.FeatureCollection);
     }
   }, [filteredSegments]);
+
+  // Update active storm positions and run pulse animation
+  useEffect(() => {
+    if (!map.current || !activeStormPositions) return;
+
+    const source = map.current.getSource('active-storms') as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(activeStormPositions as GeoJSON.FeatureCollection);
+    }
+
+    // Pulse animation
+    let startTime = performance.now();
+
+    const animatePulse = () => {
+      if (!map.current) return;
+
+      const elapsed = performance.now() - startTime;
+      const t = (elapsed % 1500) / 1500; // 1.5 second cycle
+      const pulseRadius = 12 + Math.sin(t * Math.PI * 2) * 10; // 12-22 radius
+      const pulseOpacity = 0.4 - t * 0.3; // Fade out as it expands
+
+      map.current.setPaintProperty('active-storms-pulse', 'circle-radius', pulseRadius);
+      map.current.setPaintProperty('active-storms-pulse', 'circle-opacity', Math.max(0.1, pulseOpacity));
+
+      pulseAnimation.current = requestAnimationFrame(animatePulse);
+    };
+
+    animatePulse();
+
+    return () => {
+      if (pulseAnimation.current) {
+        cancelAnimationFrame(pulseAnimation.current);
+      }
+    };
+  }, [activeStormPositions]);
 
   // Count unique storms from segments
   const stormCount = useMemo(() => {
