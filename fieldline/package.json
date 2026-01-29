@@ -6,10 +6,15 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "pipeline": "node --import tsx src/pipelines/hurricanes.ts"
+    "pipeline": "node --import tsx src/pipelines/hurricanes.ts",
+    "pipeline:railroads": "node --import tsx src/pipelines/railroads.ts",
+    "pipeline:sf-urban": "node --import tsx src/pipelines/sf-urban.ts"
   },
   "devDependencies": {
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "shapefile": "^0.6.6"
   }
 }
