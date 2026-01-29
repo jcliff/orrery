@@ -1,7 +1,37 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import shapefile from 'shapefile';
+import proj4 from 'proj4';
 
 const INPUT_PATH = new URL('../../data/raw/railroads/RR1826-1911Modified103123.shp', import.meta.url).pathname;
+
+// Define the Albers Equal Area Conic projection used by the shapefile
+const ALBERS = '+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs';
+const WGS84 = 'EPSG:4326';
+
+// Transform a coordinate from Albers to WGS84
+function transformCoord(coord: number[]): number[] {
+  const [x, y] = coord;
+  const [lng, lat] = proj4(ALBERS, WGS84, [x, y]);
+  return [lng, lat];
+}
+
+// Transform all coordinates in a geometry
+function transformGeometry(geometry: { type: string; coordinates: unknown }): { type: string; coordinates: unknown } {
+  if (geometry.type === 'LineString') {
+    const coords = geometry.coordinates as number[][];
+    return {
+      type: geometry.type,
+      coordinates: coords.map(transformCoord),
+    };
+  } else if (geometry.type === 'MultiLineString') {
+    const coords = geometry.coordinates as number[][][];
+    return {
+      type: geometry.type,
+      coordinates: coords.map(line => line.map(transformCoord)),
+    };
+  }
+  return geometry;
+}
 const OUTPUT_DIR = new URL('../../data/processed/railroads', import.meta.url).pathname;
 
 interface RailroadProperties {
@@ -85,7 +115,7 @@ async function main() {
         startTime,
         color: getEraColor(year),
       },
-      geometry: result.value.geometry,
+      geometry: transformGeometry(result.value.geometry) as GeoJSONFeature['geometry'],
     });
   }
 

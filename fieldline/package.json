@@ -11,10 +11,12 @@
     "pipeline:sf-urban": "node --import tsx src/pipelines/sf-urban.ts"
   },
   "devDependencies": {
+    "@types/proj4": "^2.19.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "proj4": "^2.20.2",
     "shapefile": "^0.6.6"
   }
 }
