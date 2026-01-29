@@ -11,7 +11,7 @@ export default function App() {
   const map = useRef<maplibregl.Map | null>(null);
   const [segmentsData, setSegmentsData] = useState<TemporalFeatureCollection | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
-  const [yearRange, setYearRange] = useState<[number, number]>([1830, 1880]);
+  const [yearRange, setYearRange] = useState<[number, number]>([1850, 1875]);
   const [accumulatePaths, setAccumulatePaths] = useState(true);
 
   // Create timeline once we have data
