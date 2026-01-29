@@ -63,15 +63,51 @@ interface GeoJSONFeatureCollection {
   features: GeoJSONFeature[];
 }
 
-// Color palette for different eras
-function getEraColor(year: number): string {
-  if (year < 1850) return '#e74c3c';      // Pre-1850: Red (early pioneers)
-  if (year < 1860) return '#e67e22';      // 1850s: Orange (pre-Civil War expansion)
-  if (year < 1870) return '#f39c12';      // 1860s: Gold (Civil War era, transcontinental)
-  if (year < 1880) return '#27ae60';      // 1870s: Green (post-war boom)
-  if (year < 1890) return '#3498db';      // 1880s: Blue (golden age)
-  if (year < 1900) return '#9b59b6';      // 1890s: Purple (consolidation)
-  return '#1abc9c';                        // 1900+: Teal (20th century)
+// Regional groupings for coloring
+const REGIONS: Record<string, string> = {
+  // Northeast (Blue)
+  'Maine': 'northeast', 'New Hampshire': 'northeast', 'Vermont': 'northeast',
+  'Massachusetts': 'northeast', 'Rhode Island': 'northeast', 'Connecticut': 'northeast',
+  'New York': 'northeast', 'New Jersey': 'northeast', 'Pennsylvania': 'northeast',
+
+  // Southeast (Red/Orange)
+  'Delaware': 'southeast', 'Maryland': 'southeast', 'District of Columbia': 'southeast',
+  'Virginia': 'southeast', 'West Virginia': 'southeast', 'North Carolina': 'southeast',
+  'South Carolina': 'southeast', 'Georgia': 'southeast', 'Florida': 'southeast',
+  'Alabama': 'southeast', 'Mississippi': 'southeast', 'Tennessee': 'southeast',
+  'Kentucky': 'southeast', 'Louisiana': 'southeast', 'Arkansas': 'southeast',
+
+  // Midwest (Green)
+  'Ohio': 'midwest', 'Indiana': 'midwest', 'Illinois': 'midwest',
+  'Michigan': 'midwest', 'Wisconsin': 'midwest', 'Minnesota': 'midwest',
+  'Iowa': 'midwest', 'Missouri': 'midwest',
+
+  // Great Plains (Yellow/Gold)
+  'North Dakota': 'plains', 'South Dakota': 'plains', 'Nebraska': 'plains',
+  'Kansas': 'plains', 'Oklahoma Territory': 'plains', 'Indian Territory': 'plains',
+  'Texas': 'plains',
+
+  // Mountain West (Purple)
+  'Montana': 'mountain', 'Wyoming': 'mountain', 'Colorado': 'mountain',
+  'New Mexico Territory': 'mountain', 'Arizona Territory': 'mountain',
+  'Utah': 'mountain', 'Nevada': 'mountain', 'Idaho': 'mountain',
+
+  // Pacific (Teal)
+  'Washington': 'pacific', 'Oregon': 'pacific', 'California': 'pacific',
+};
+
+const REGION_COLORS: Record<string, string> = {
+  'northeast': '#3498db',  // Blue
+  'southeast': '#e74c3c',  // Red
+  'midwest': '#27ae60',    // Green
+  'plains': '#f39c12',     // Gold
+  'mountain': '#9b59b6',   // Purple
+  'pacific': '#1abc9c',    // Teal
+};
+
+function getRegionColor(state: string): string {
+  const region = REGIONS[state];
+  return region ? REGION_COLORS[region] : '#95a5a6'; // Gray for unknown
 }
 
 async function main() {
@@ -103,17 +139,20 @@ async function main() {
     // Use July 4th of the year as the opening date (symbolic)
     const startTime = `${year}-07-04T00:00:00Z`;
 
+    const region = REGIONS[props.STATENAM] || 'unknown';
+
     features.push({
       type: 'Feature',
       properties: {
         id: props.FIDAll,
         name: props.RRname,
         state: props.STATENAM,
+        region,
         year: year,
         miles: props.Miles,
         gauge: props.Gauge,
         startTime,
-        color: getEraColor(year),
+        color: getRegionColor(props.STATENAM),
       },
       geometry: transformGeometry(result.value.geometry) as GeoJSONFeature['geometry'],
     });

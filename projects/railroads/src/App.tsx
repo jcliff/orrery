@@ -250,20 +250,19 @@ export default function App() {
 }
 
 function Legend() {
-  const eras = [
-    { label: 'Pre-1850', color: '#e74c3c' },
-    { label: '1850s', color: '#e67e22' },
-    { label: '1860s', color: '#f39c12' },
-    { label: '1870s', color: '#27ae60' },
-    { label: '1880s', color: '#3498db' },
-    { label: '1890s', color: '#9b59b6' },
-    { label: '1900+', color: '#1abc9c' },
+  const regions = [
+    { label: 'Northeast', color: '#3498db' },
+    { label: 'Southeast', color: '#e74c3c' },
+    { label: 'Midwest', color: '#27ae60' },
+    { label: 'Great Plains', color: '#f39c12' },
+    { label: 'Mountain West', color: '#9b59b6' },
+    { label: 'Pacific', color: '#1abc9c' },
   ];
 
   return (
     <div style={styles.legend}>
-      <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Era</div>
-      {eras.map(({ label, color }) => (
+      <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Region</div>
+      {regions.map(({ label, color }) => (
         <div
           key={label}
           style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}
