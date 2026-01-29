@@ -24,11 +24,18 @@ export default function App() {
     });
   }, [segmentsData]);
 
-  // Subscribe to timeline ticks
+  // Subscribe to timeline ticks (throttled to 100ms for performance)
   useEffect(() => {
     if (!timeline) return;
 
+    let lastUpdate = 0;
+    const THROTTLE_MS = 100;
+
     const handleTick = (e: Event) => {
+      const now = Date.now();
+      if (now - lastUpdate < THROTTLE_MS) return;
+      lastUpdate = now;
+
       const detail = (e as CustomEvent).detail;
       setCurrentTime(detail.currentTime);
     };

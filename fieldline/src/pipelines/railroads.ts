@@ -8,11 +8,11 @@ const INPUT_PATH = new URL('../../data/raw/railroads/RR1826-1911Modified103123.s
 const ALBERS = '+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs';
 const WGS84 = 'EPSG:4326';
 
-// Transform a coordinate from Albers to WGS84
+// Transform a coordinate from Albers to WGS84 (5 decimal places = ~1m precision)
 function transformCoord(coord: number[]): number[] {
   const [x, y] = coord;
   const [lng, lat] = proj4(ALBERS, WGS84, [x, y]);
-  return [lng, lat];
+  return [Math.round(lng * 100000) / 100000, Math.round(lat * 100000) / 100000];
 }
 
 // Transform all coordinates in a geometry
