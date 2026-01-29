@@ -3,6 +3,11 @@ import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 const INPUT_DIR = new URL('../../data/raw/sf-urban', import.meta.url).pathname;
 const OUTPUT_DIR = new URL('../../data/processed/sf-urban', import.meta.url).pathname;
 
+// Round coordinates to 5 decimal places (~1m precision)
+function roundCoord(coord: number): number {
+  return Math.round(coord * 100000) / 100000;
+}
+
 interface RawParcel {
   parcel_number: string;
   year_property_built: string;
@@ -92,7 +97,13 @@ async function main() {
           startTime,
           color: getEraColor(year),
         },
-        geometry: parcel.the_geom,
+        geometry: {
+          type: 'Point',
+          coordinates: [
+            roundCoord(parcel.the_geom.coordinates[0]),
+            roundCoord(parcel.the_geom.coordinates[1]),
+          ],
+        },
       });
     }
   }
