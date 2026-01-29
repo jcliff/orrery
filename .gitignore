@@ -2,5 +2,8 @@ node_modules/
 dist/
 *.log
 .DS_Store
-fieldline/data/raw/
-fieldline/data/processed/
+
+# Data files (code only in git)
+fieldline/data/
+projects/*/public/*.geojson
+projects/*/public/*.json
