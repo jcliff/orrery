@@ -12,7 +12,11 @@
     "pipeline:sf-urban-tiles": "node --import tsx src/pipelines/sf-urban-tiles.ts",
     "pipeline:palo-alto-fetch": "node --import tsx src/pipelines/palo-alto-fetch.ts",
     "pipeline:palo-alto": "node --import tsx src/pipelines/palo-alto.ts",
-    "pipeline:palo-alto-tiles": "node --import tsx src/pipelines/palo-alto-tiles.ts"
+    "pipeline:palo-alto-tiles": "node --import tsx src/pipelines/palo-alto-tiles.ts",
+    "pipeline:campbell-fetch": "node --import tsx src/pipelines/campbell-fetch.ts",
+    "pipeline:campbell": "node --import tsx src/pipelines/campbell.ts",
+    "pipeline:solano-fetch": "node --import tsx src/pipelines/solano-fetch.ts",
+    "pipeline:solano": "node --import tsx src/pipelines/solano.ts"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

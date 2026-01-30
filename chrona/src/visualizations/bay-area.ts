@@ -6,9 +6,9 @@ export const bayAreaConfig: VisualizationConfig = {
   id: 'bay-area',
   name: 'Bay Area Development',
 
-  // Center between SF and Palo Alto (around San Mateo)
-  center: [-122.28, 37.58],
-  zoom: 10,
+  // Center on Bay Area (between SF and South Bay/North Bay)
+  center: [-122.15, 37.75],
+  zoom: 9,
 
   timeRange: {
     start: '1848-01-01',
@@ -42,6 +42,32 @@ export const bayAreaConfig: VisualizationConfig = {
       id: 'pa-parcels-detailed',
       type: 'geojson',
       url: '/data/palo-alto/parcels-detailed.geojson',
+      minzoom: ZOOM_THRESHOLD,
+    },
+    // Campbell sources
+    {
+      id: 'campbell-parcels-aggregated',
+      type: 'geojson',
+      url: '/data/campbell/parcels.geojson',
+      maxzoom: ZOOM_THRESHOLD,
+    },
+    {
+      id: 'campbell-parcels-detailed',
+      type: 'geojson',
+      url: '/data/campbell/parcels-detailed.geojson',
+      minzoom: ZOOM_THRESHOLD,
+    },
+    // Solano County sources
+    {
+      id: 'solano-parcels-aggregated',
+      type: 'geojson',
+      url: '/data/solano/parcels.geojson',
+      maxzoom: ZOOM_THRESHOLD,
+    },
+    {
+      id: 'solano-parcels-detailed',
+      type: 'geojson',
+      url: '/data/solano/parcels-detailed.geojson',
       minzoom: ZOOM_THRESHOLD,
     },
   ],
@@ -141,6 +167,102 @@ export const bayAreaConfig: VisualizationConfig = {
         'line-opacity': 0.9,
       },
     },
+    // Campbell layers (zoomed out)
+    {
+      id: 'campbell-parcels-circles',
+      sourceId: 'campbell-parcels-aggregated',
+      type: 'circle',
+      maxzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10, ['max', 2, ['min', 6, ['/', ['sqrt', ['get', 'area']], 500]]],
+          14, ['max', 4, ['min', 10, ['/', ['sqrt', ['get', 'area']], 200]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': ['get', 'opacity'],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    // Campbell layers (zoomed in - polygons)
+    {
+      id: 'campbell-parcels-fill',
+      sourceId: 'campbell-parcels-detailed',
+      type: 'fill',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'fill-color': ['get', 'color'],
+        'fill-opacity': ['coalesce', ['get', 'opacity'], 0.7],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    {
+      id: 'campbell-parcels-outline',
+      sourceId: 'campbell-parcels-detailed',
+      type: 'line',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': 1,
+        'line-opacity': 0.9,
+      },
+    },
+    // Solano County layers (zoomed out)
+    {
+      id: 'solano-parcels-circles',
+      sourceId: 'solano-parcels-aggregated',
+      type: 'circle',
+      maxzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10, ['max', 2, ['min', 6, ['/', ['sqrt', ['get', 'area']], 500]]],
+          14, ['max', 4, ['min', 10, ['/', ['sqrt', ['get', 'area']], 200]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': ['get', 'opacity'],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    // Solano County layers (zoomed in - polygons)
+    {
+      id: 'solano-parcels-fill',
+      sourceId: 'solano-parcels-detailed',
+      type: 'fill',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'fill-color': ['get', 'color'],
+        'fill-opacity': ['coalesce', ['get', 'opacity'], 0.7],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    {
+      id: 'solano-parcels-outline',
+      sourceId: 'solano-parcels-detailed',
+      type: 'line',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': 1,
+        'line-opacity': 0.9,
+      },
+    },
   ],
 
   legend: {
@@ -179,7 +301,7 @@ export const bayAreaConfig: VisualizationConfig = {
   },
 
   popup: {
-    layers: ['sf-buildings-layer', 'sf-buildings-detailed-layer', 'pa-parcels-circles', 'pa-parcels-fill'],
+    layers: ['sf-buildings-layer', 'sf-buildings-detailed-layer', 'pa-parcels-circles', 'pa-parcels-fill', 'campbell-parcels-circles', 'campbell-parcels-fill', 'solano-parcels-circles', 'solano-parcels-fill'],
     render: (props) => {
       // Aggregated cluster
       if (props.count && (props.count as number) > 1) {
