@@ -59,7 +59,10 @@
     "pipeline:sonoma-tiles": "node --import tsx src/pipelines/sonoma-tiles.ts",
     "pipeline:santa-rosa-fetch": "node --import tsx src/pipelines/santa-rosa-fetch.ts",
     "pipeline:santa-rosa": "node --import tsx src/pipelines/santa-rosa.ts",
-    "pipeline:santa-rosa-tiles": "node --import tsx src/pipelines/santa-rosa-tiles.ts"
+    "pipeline:santa-rosa-tiles": "node --import tsx src/pipelines/santa-rosa-tiles.ts",
+    "pipeline:pittsburg-fetch": "node --import tsx src/pipelines/pittsburg-fetch.ts",
+    "pipeline:pittsburg": "node --import tsx src/pipelines/pittsburg.ts",
+    "pipeline:pittsburg-tiles": "node --import tsx src/pipelines/pittsburg-tiles.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

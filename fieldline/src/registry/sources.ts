@@ -415,6 +415,53 @@ export const SANTA_ROSA: SourceDefinition = {
   attributionUrl: 'https://www.srcity.org',
 };
 
+export const PITTSBURG: SourceDefinition = {
+  id: 'pittsburg',
+  name: 'Pittsburg Parcels',
+  country: 'US',
+  region: 'California',
+  city: 'Pittsburg',
+  api: {
+    type: 'arcgis',
+    url: 'https://copgissvrweb.pittsburgca.gov/arcgis/rest/services/Parcels/Parcels/FeatureServer/4/query',
+    outFields: [
+      'parcel_das',
+      'YR_HS_BLT',
+      'YR_BUILT',
+      'USE_CODE',
+      'USE_DESC',
+      'Address',
+      'City_1',
+      'TOT_AREA',
+      'BLDG_SQFT',
+      'STORIES',
+      'UNITS',
+      'BEDS',
+      'BATHS',
+      'ACREAGE',
+    ],
+    where: "YR_HS_BLT IS NOT NULL AND YR_HS_BLT <> '' AND YR_HS_BLT <> '0'",
+  },
+  schema: {
+    sourceId: 'pittsburg',
+    fieldMapping: {
+      id: 'parcel_das',
+      yearBuilt: ['YR_HS_BLT', 'YR_BUILT'],
+      landUse: 'USE_DESC',
+      address: 'Address',
+      city: 'City_1',
+      area: 'BLDG_SQFT',
+      stories: 'STORIES',
+      units: 'UNITS',
+    },
+    areaUnit: 'sqft',
+  },
+  expectedCount: 25000,
+  updateFrequency: 'monthly',
+  attribution: 'City of Pittsburg',
+  attributionUrl: 'https://www.pittsburgca.gov',
+};
+
 // ============================================================================
 // Other US Sources
 // ============================================================================
@@ -825,6 +872,7 @@ export const SOURCES: Record<string, SourceDefinition> = {
   hayward: HAYWARD,
   sonoma: SONOMA,
   'santa-rosa': SANTA_ROSA,
+  pittsburg: PITTSBURG,
   // Other US
   'la-county': LA_COUNTY,
   'nyc-pluto': NYC_PLUTO,
