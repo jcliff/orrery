@@ -205,6 +205,7 @@ export function VisualizationView({ config }: VisualizationViewProps) {
       const filter = createTemporalFilterWithRange(year, yearRange, {
         mode: accumulatePaths ? 'cumulative' : 'active',
         fadeYears: layer.temporal.fadeYears ?? 20,
+        yearProperty: layer.temporal.yearProperty,
       });
 
       map.current.setFilter(layer.id, filter);

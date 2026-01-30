@@ -37,6 +37,8 @@ export interface LayerConfig {
     fadeMonths?: number;
     /** Whether to use GPU-evaluated filters (for large datasets) */
     useGpuFilter?: boolean;
+    /** Property name containing the year (default 'year') */
+    yearProperty?: string;
   };
 }
 
