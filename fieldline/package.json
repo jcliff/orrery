@@ -23,7 +23,9 @@
     "pipeline:la-county": "node --import tsx src/pipelines/la-county.ts",
     "pipeline:clark-county-fetch": "node --import tsx src/pipelines/clark-county-fetch.ts",
     "pipeline:clark-county": "node --import tsx src/pipelines/clark-county.ts",
-    "pipeline:clark-county-tiles": "node --import tsx src/pipelines/clark-county-tiles.ts"
+    "pipeline:clark-county-tiles": "node --import tsx src/pipelines/clark-county-tiles.ts",
+    "pipeline:nyc-fetch": "node --import tsx src/pipelines/nyc-fetch.ts",
+    "pipeline:nyc": "node --import tsx src/pipelines/nyc.ts"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

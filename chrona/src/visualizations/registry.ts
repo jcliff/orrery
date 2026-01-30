@@ -6,6 +6,7 @@ import { paloAltoConfig } from './palo-alto';
 import { bayAreaConfig } from './bay-area';
 import { clarkCountyConfig } from './clark-county';
 import { laCountyConfig } from './la-county';
+import { nycConfig } from './nyc';
 
 export const visualizations: VisualizationRegistry = {
   hurricanes: hurricanesConfig,
@@ -15,4 +16,5 @@ export const visualizations: VisualizationRegistry = {
   'bay-area': bayAreaConfig,
   'clark-county': clarkCountyConfig,
   'la-county': laCountyConfig,
+  'nyc': nycConfig,
 };
