@@ -84,7 +84,7 @@ function getCentroid(geometry: RawFeature['geometry']): [number, number] | null 
   }
 
   if (geometry.type === 'MultiPolygon') {
-    const polys = geometry.coordinates as number[][][][];
+    const polys = geometry.coordinates as unknown as number[][][][];
     let sumLng = 0, sumLat = 0, count = 0;
     for (const poly of polys) {
       for (const [lng, lat] of poly[0]) {

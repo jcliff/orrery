@@ -451,9 +451,10 @@ export const AMSTERDAM_BAG: SourceDefinition = {
       const data = response as { features?: unknown[] };
       return data.features || [];
     },
-    hasMore: (response: unknown, features: unknown[], offset: number) => {
-      const data = response as { numberMatched?: number };
-      return features.length > 0 && offset + features.length < (data.numberMatched || 0);
+    hasMore: (response: unknown, features: unknown[]) => {
+      const data = response as { numberMatched?: number; numberReturned?: number };
+      // If numberMatched is available, check if we've fetched all
+      return features.length > 0 && (data.numberMatched ? data.numberReturned === features.length : true);
     },
   },
   schema: {
@@ -492,7 +493,7 @@ export const PARIS_APUR: SourceDefinition = {
       'c_tissu',
       'Shape_Area',
     ],
-    outSR: 4326,
+    outSR: '4326',
   },
   schema: {
     sourceId: 'paris',
