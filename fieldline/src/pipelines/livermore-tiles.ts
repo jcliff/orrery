@@ -5,9 +5,9 @@ import { generateTiles } from './lib/generate-tiles.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 generateTiles({
-  name: 'Palo Alto',
-  inputPath: join(__dirname, '../../../chrona/public/data/palo-alto/parcels-detailed.geojson'),
-  outputDir: join(__dirname, '../../../chrona/public/data/palo-alto'),
+  name: 'Livermore',
+  inputPath: join(__dirname, '../../../chrona/public/data/livermore/parcels-detailed.geojson'),
+  outputDir: join(__dirname, '../../../chrona/public/data/livermore'),
   layerName: 'parcels',
   isNdjson: false,
 }).catch((err) => {

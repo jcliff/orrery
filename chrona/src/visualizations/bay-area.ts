@@ -39,9 +39,10 @@ export const bayAreaConfig: VisualizationConfig = {
       maxzoom: ZOOM_THRESHOLD,
     },
     {
-      id: 'pa-parcels-detailed',
-      type: 'geojson',
-      url: '/data/palo-alto/parcels-detailed.geojson',
+      id: 'pa-parcels-tiles',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/palo-alto/parcels.pmtiles',
+      sourceLayer: 'parcels',
       minzoom: ZOOM_THRESHOLD,
     },
     // Campbell sources
@@ -52,9 +53,10 @@ export const bayAreaConfig: VisualizationConfig = {
       maxzoom: ZOOM_THRESHOLD,
     },
     {
-      id: 'campbell-parcels-detailed',
-      type: 'geojson',
-      url: '/data/campbell/parcels-detailed.geojson',
+      id: 'campbell-parcels-tiles',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/campbell/parcels.pmtiles',
+      sourceLayer: 'parcels',
       minzoom: ZOOM_THRESHOLD,
     },
     // Solano County sources
@@ -65,9 +67,10 @@ export const bayAreaConfig: VisualizationConfig = {
       maxzoom: ZOOM_THRESHOLD,
     },
     {
-      id: 'solano-parcels-detailed',
-      type: 'geojson',
-      url: '/data/solano/parcels-detailed.geojson',
+      id: 'solano-parcels-tiles',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/solano/parcels.pmtiles',
+      sourceLayer: 'parcels',
       minzoom: ZOOM_THRESHOLD,
     },
     // Livermore sources
@@ -78,9 +81,10 @@ export const bayAreaConfig: VisualizationConfig = {
       maxzoom: ZOOM_THRESHOLD,
     },
     {
-      id: 'livermore-parcels-detailed',
-      type: 'geojson',
-      url: '/data/livermore/parcels-detailed.geojson',
+      id: 'livermore-parcels-tiles',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/livermore/parcels.pmtiles',
+      sourceLayer: 'parcels',
       minzoom: ZOOM_THRESHOLD,
     },
   ],
@@ -154,30 +158,28 @@ export const bayAreaConfig: VisualizationConfig = {
         fadeYears: 20,
       },
     },
-    // Palo Alto layers (zoomed in - polygons)
+    // Palo Alto layers (zoomed in - PMTiles)
     {
-      id: 'pa-parcels-fill',
-      sourceId: 'pa-parcels-detailed',
-      type: 'fill',
+      id: 'pa-parcels-detailed',
+      sourceId: 'pa-parcels-tiles',
+      sourceLayer: 'parcels',
+      type: 'circle',
       minzoom: ZOOM_THRESHOLD,
       paint: {
-        'fill-color': ['get', 'color'],
-        'fill-opacity': ['coalesce', ['get', 'opacity'], 0.7],
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+          18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
       },
       temporal: {
         mode: 'cumulative',
         fadeYears: 20,
-      },
-    },
-    {
-      id: 'pa-parcels-outline',
-      sourceId: 'pa-parcels-detailed',
-      type: 'line',
-      minzoom: ZOOM_THRESHOLD,
-      paint: {
-        'line-color': ['get', 'color'],
-        'line-width': 1,
-        'line-opacity': 0.9,
+        useGpuFilter: true,
       },
     },
     // Campbell layers (zoomed out)
@@ -202,30 +204,28 @@ export const bayAreaConfig: VisualizationConfig = {
         fadeYears: 20,
       },
     },
-    // Campbell layers (zoomed in - polygons)
+    // Campbell layers (zoomed in - PMTiles)
     {
-      id: 'campbell-parcels-fill',
-      sourceId: 'campbell-parcels-detailed',
-      type: 'fill',
+      id: 'campbell-parcels-detailed',
+      sourceId: 'campbell-parcels-tiles',
+      sourceLayer: 'parcels',
+      type: 'circle',
       minzoom: ZOOM_THRESHOLD,
       paint: {
-        'fill-color': ['get', 'color'],
-        'fill-opacity': ['coalesce', ['get', 'opacity'], 0.7],
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+          18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
       },
       temporal: {
         mode: 'cumulative',
         fadeYears: 20,
-      },
-    },
-    {
-      id: 'campbell-parcels-outline',
-      sourceId: 'campbell-parcels-detailed',
-      type: 'line',
-      minzoom: ZOOM_THRESHOLD,
-      paint: {
-        'line-color': ['get', 'color'],
-        'line-width': 1,
-        'line-opacity': 0.9,
+        useGpuFilter: true,
       },
     },
     // Solano County layers (zoomed out)
@@ -250,30 +250,28 @@ export const bayAreaConfig: VisualizationConfig = {
         fadeYears: 20,
       },
     },
-    // Solano County layers (zoomed in - polygons)
+    // Solano County layers (zoomed in - PMTiles)
     {
-      id: 'solano-parcels-fill',
-      sourceId: 'solano-parcels-detailed',
-      type: 'fill',
+      id: 'solano-parcels-detailed',
+      sourceId: 'solano-parcels-tiles',
+      sourceLayer: 'parcels',
+      type: 'circle',
       minzoom: ZOOM_THRESHOLD,
       paint: {
-        'fill-color': ['get', 'color'],
-        'fill-opacity': ['coalesce', ['get', 'opacity'], 0.7],
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+          18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
       },
       temporal: {
         mode: 'cumulative',
         fadeYears: 20,
-      },
-    },
-    {
-      id: 'solano-parcels-outline',
-      sourceId: 'solano-parcels-detailed',
-      type: 'line',
-      minzoom: ZOOM_THRESHOLD,
-      paint: {
-        'line-color': ['get', 'color'],
-        'line-width': 1,
-        'line-opacity': 0.9,
+        useGpuFilter: true,
       },
     },
     // Livermore layers (zoomed out)
@@ -298,30 +296,28 @@ export const bayAreaConfig: VisualizationConfig = {
         fadeYears: 20,
       },
     },
-    // Livermore layers (zoomed in - polygons)
+    // Livermore layers (zoomed in - PMTiles)
     {
-      id: 'livermore-parcels-fill',
-      sourceId: 'livermore-parcels-detailed',
-      type: 'fill',
+      id: 'livermore-parcels-detailed',
+      sourceId: 'livermore-parcels-tiles',
+      sourceLayer: 'parcels',
+      type: 'circle',
       minzoom: ZOOM_THRESHOLD,
       paint: {
-        'fill-color': ['get', 'color'],
-        'fill-opacity': ['coalesce', ['get', 'opacity'], 0.7],
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+          18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
       },
       temporal: {
         mode: 'cumulative',
         fadeYears: 20,
-      },
-    },
-    {
-      id: 'livermore-parcels-outline',
-      sourceId: 'livermore-parcels-detailed',
-      type: 'line',
-      minzoom: ZOOM_THRESHOLD,
-      paint: {
-        'line-color': ['get', 'color'],
-        'line-width': 1,
-        'line-opacity': 0.9,
+        useGpuFilter: true,
       },
     },
   ],
@@ -362,7 +358,13 @@ export const bayAreaConfig: VisualizationConfig = {
   },
 
   popup: {
-    layers: ['sf-buildings-layer', 'sf-buildings-detailed-layer', 'pa-parcels-circles', 'pa-parcels-fill', 'campbell-parcels-circles', 'campbell-parcels-fill', 'solano-parcels-circles', 'solano-parcels-fill', 'livermore-parcels-circles', 'livermore-parcels-fill'],
+    layers: [
+      'sf-buildings-layer', 'sf-buildings-detailed-layer',
+      'pa-parcels-circles', 'pa-parcels-detailed',
+      'campbell-parcels-circles', 'campbell-parcels-detailed',
+      'solano-parcels-circles', 'solano-parcels-detailed',
+      'livermore-parcels-circles', 'livermore-parcels-detailed',
+    ],
     render: (props) => {
       // Aggregated cluster
       if (props.count && (props.count as number) > 1) {
