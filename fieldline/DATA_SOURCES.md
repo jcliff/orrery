@@ -10,15 +10,16 @@ This document tracks parcel data sources with year built information for the Orr
 | Palo Alto | 25,479 | 90% | 1880-2025 | ✅ Live |
 | Campbell | 39,669 | 96% | 1840-2025 | ✅ Live |
 | Solano County | 133,914 | 99.9% | 1850-2025 | ✅ Live |
-| **TOTAL** | **411,062** | | | |
+| Livermore | 52,196 | 88% | 1870-2024 | ✅ Live |
+| **TOTAL** | **463,258** | | | |
 
-## Confirmed Working - Ready to Add
+## Recently Added
 
-### Livermore, CA
+### Livermore, CA (added 2026-01-29)
 - **Endpoint**: `https://gis.cityoflivermore.net/arcgis/rest/services/Parcels/FeatureServer/0`
 - **Parcels**: 52,196 total, 46,114 with year built (88%)
 - **Fields**: `YrBuilt`, `APN`, `SitusNum`, `SitusStreet`, `LandUseDescription`, `LotSize`, `BldgArea`
-- **Status**: Ready for pipeline
+- **Status**: ✅ Live
 
 ## Data Source Patterns
 
@@ -55,6 +56,23 @@ Example: SF uses `https://data.sfgov.org/resource/wv5m-vpq2.json`
 | Alameda County | 489,457 | Geometry only, no year built |
 | Sunnyvale | ~40,000 | Basic address fields only |
 | Santa Clara County Socrata | 499,929 | Dataset requires auth or is empty |
+| ArcGIS Tax_Parcels (unknown county) | 339,421 | Has land values but no year built |
+| Dublin, Pleasanton | Unknown | GIS endpoints not responding |
+| Oakland, Berkeley | Unknown | City GIS not publicly accessible |
+| San Leandro, Hayward | Unknown | Endpoints not responding |
+| Antioch, Concord | Unknown | No parcel layers found |
+| Sacramento City/County | Unknown | Endpoints not responding |
+| Napa, Sonoma County | Unknown | Endpoints not responding |
+
+## Endpoint Status Notes
+
+**Working Pattern**: Cities with dedicated GIS departments (Livermore, Campbell, Palo Alto) often expose year built via ArcGIS FeatureServer. Counties with open data initiatives (Solano, SF via Socrata) also work.
+
+**Common Issues**:
+- Many city GIS servers are internal-only or behind auth
+- County assessor data often separated from parcel geometry
+- Some endpoints exist but don't include year built field
+- Cloudflare/rate limiting blocks some automated queries
 
 ## To Investigate
 
