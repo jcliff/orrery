@@ -11,6 +11,7 @@
     "test:coverage": "vitest run --coverage",
     "pipeline": "node --import tsx src/pipelines/hurricanes.ts",
     "pipeline:railroads": "node --import tsx src/pipelines/railroads.ts",
+    "pipeline:railroads-tiles": "node --import tsx src/pipelines/railroads-tiles.ts",
     "pipeline:sf-urban": "node --import tsx src/pipelines/sf-urban.ts",
     "pipeline:sf-urban-tiles": "node --import tsx src/pipelines/sf-urban-tiles.ts",
     "pipeline:palo-alto-fetch": "node --import tsx src/pipelines/palo-alto-fetch.ts",
@@ -71,7 +72,10 @@
     "pipeline:brentwood-tiles": "node --import tsx src/pipelines/brentwood-tiles.ts",
     "pipeline:berkeley-fetch": "node --import tsx src/pipelines/berkeley-fetch.ts",
     "pipeline:berkeley": "node --import tsx src/pipelines/berkeley.ts",
-    "pipeline:berkeley-tiles": "node --import tsx src/pipelines/berkeley-tiles.ts"
+    "pipeline:berkeley-tiles": "node --import tsx src/pipelines/berkeley-tiles.ts",
+    "pipeline:washoe-fetch": "node --import tsx src/pipelines/washoe-fetch.ts",
+    "pipeline:washoe": "node --import tsx src/pipelines/washoe.ts",
+    "pipeline:washoe-tiles": "node --import tsx src/pipelines/washoe-tiles.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

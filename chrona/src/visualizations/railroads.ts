@@ -8,16 +8,17 @@ export const railroadsConfig: VisualizationConfig = {
   zoom: 4,
 
   timeRange: {
-    start: '1850-01-01',
-    end: '1876-01-01',
+    start: '1830-01-01',
+    end: '1916-01-01',
   },
   defaultSpeed: 86400 * 365, // 1 year/sec
 
   sources: [
     {
       id: 'railroad-tracks',
-      type: 'geojson',
-      url: '/data/railroads/segments.geojson',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/railroads/segments.pmtiles',
+      sourceLayer: 'segments',
     },
   ],
 
@@ -25,6 +26,7 @@ export const railroadsConfig: VisualizationConfig = {
     {
       id: 'railroad-tracks-layer',
       sourceId: 'railroad-tracks',
+      sourceLayer: 'segments',
       type: 'line',
       layout: {
         'line-join': 'round',
@@ -33,11 +35,12 @@ export const railroadsConfig: VisualizationConfig = {
       paint: {
         'line-color': ['get', 'color'],
         'line-width': 1.5,
-        'line-opacity': ['get', 'opacity'],
+        'line-opacity': 0.8,
       },
       temporal: {
         mode: 'cumulative',
         fadeYears: 5,
+        useGpuFilter: true,
       },
     },
   ],
@@ -70,7 +73,7 @@ export const railroadsConfig: VisualizationConfig = {
     showMonth: true,
   },
 
-  defaultYearRange: [1850, 1875],
+  defaultYearRange: [1830, 1916],
 
   title: {
     text: 'US Railroad Development',

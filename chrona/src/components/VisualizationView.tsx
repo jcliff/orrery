@@ -37,7 +37,9 @@ export function VisualizationView({ config }: VisualizationViewProps) {
 
   // Load data
   const { data, loading, error, filterData } = useTemporalData(config);
-  const dataLoaded = !loading && !error && Object.keys(data).length > 0;
+  // For PMTiles-only configs, data will be empty but we're still "loaded"
+  const hasGeoJsonSources = config.sources.some((s) => s.type === 'geojson');
+  const dataLoaded = !loading && !error && (!hasGeoJsonSources || Object.keys(data).length > 0);
 
   // Create timeline
   const { timeline, currentTime } = useTimeline(config, dataLoaded);
@@ -45,9 +47,52 @@ export function VisualizationView({ config }: VisualizationViewProps) {
   // Track filtered data for hurricane-specific active storms source
   const [activeStormsData, setActiveStormsData] = useState<GeoJSON.FeatureCollection | null>(null);
 
-  // Get year bounds for the timeline
-  const minYear = new Date(config.timeRange.start).getFullYear();
-  const maxYear = new Date(config.timeRange.end).getFullYear();
+  // Get year bounds from the actual data (computed once when data loads)
+  const computedBounds = useRef<{ minYear: number; maxYear: number } | null>(null);
+
+  const { minYear, maxYear } = useMemo(() => {
+    const configMin = new Date(config.timeRange.start).getFullYear();
+    const configMax = new Date(config.timeRange.end).getFullYear();
+
+    // Return cached bounds if already computed
+    if (computedBounds.current) {
+      return computedBounds.current;
+    }
+
+    // Check if data is loaded
+    const hasData = config.sources.some(
+      (s) => s.type === 'geojson' && data[s.id]?.features?.length > 0
+    );
+    if (!hasData) {
+      return { minYear: configMin, maxYear: configMax };
+    }
+
+    // Compute bounds from loaded GeoJSON data
+    let dataMin = Infinity;
+    let dataMax = -Infinity;
+
+    for (const source of config.sources) {
+      if (source.type !== 'geojson') continue;
+      const sourceData = data[source.id];
+      if (!sourceData) continue;
+
+      for (const feature of sourceData.features) {
+        const year = feature.properties?.year as number;
+        if (typeof year === 'number') {
+          if (year < dataMin) dataMin = year;
+          if (year > dataMax) dataMax = year;
+        }
+      }
+    }
+
+    // Cache and return the computed bounds
+    const bounds = {
+      minYear: dataMin !== Infinity ? dataMin : configMin,
+      maxYear: dataMax !== -Infinity ? dataMax : configMax,
+    };
+    computedBounds.current = bounds;
+    return bounds;
+  }, [config.timeRange, config.sources, data]);
 
   const handleYearRangeChange = useCallback((start: number, end: number) => {
     setYearRange([start, end]);
