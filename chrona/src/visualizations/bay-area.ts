@@ -70,6 +70,19 @@ export const bayAreaConfig: VisualizationConfig = {
       url: '/data/solano/parcels-detailed.geojson',
       minzoom: ZOOM_THRESHOLD,
     },
+    // Livermore sources
+    {
+      id: 'livermore-parcels-aggregated',
+      type: 'geojson',
+      url: '/data/livermore/parcels.geojson',
+      maxzoom: ZOOM_THRESHOLD,
+    },
+    {
+      id: 'livermore-parcels-detailed',
+      type: 'geojson',
+      url: '/data/livermore/parcels-detailed.geojson',
+      minzoom: ZOOM_THRESHOLD,
+    },
   ],
 
   layers: [
@@ -263,6 +276,54 @@ export const bayAreaConfig: VisualizationConfig = {
         'line-opacity': 0.9,
       },
     },
+    // Livermore layers (zoomed out)
+    {
+      id: 'livermore-parcels-circles',
+      sourceId: 'livermore-parcels-aggregated',
+      type: 'circle',
+      maxzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10, ['max', 2, ['min', 6, ['/', ['sqrt', ['get', 'area']], 500]]],
+          14, ['max', 4, ['min', 10, ['/', ['sqrt', ['get', 'area']], 200]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': ['get', 'opacity'],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    // Livermore layers (zoomed in - polygons)
+    {
+      id: 'livermore-parcels-fill',
+      sourceId: 'livermore-parcels-detailed',
+      type: 'fill',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'fill-color': ['get', 'color'],
+        'fill-opacity': ['coalesce', ['get', 'opacity'], 0.7],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    {
+      id: 'livermore-parcels-outline',
+      sourceId: 'livermore-parcels-detailed',
+      type: 'line',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': 1,
+        'line-opacity': 0.9,
+      },
+    },
   ],
 
   legend: {
@@ -301,7 +362,7 @@ export const bayAreaConfig: VisualizationConfig = {
   },
 
   popup: {
-    layers: ['sf-buildings-layer', 'sf-buildings-detailed-layer', 'pa-parcels-circles', 'pa-parcels-fill', 'campbell-parcels-circles', 'campbell-parcels-fill', 'solano-parcels-circles', 'solano-parcels-fill'],
+    layers: ['sf-buildings-layer', 'sf-buildings-detailed-layer', 'pa-parcels-circles', 'pa-parcels-fill', 'campbell-parcels-circles', 'campbell-parcels-fill', 'solano-parcels-circles', 'solano-parcels-fill', 'livermore-parcels-circles', 'livermore-parcels-fill'],
     render: (props) => {
       // Aggregated cluster
       if (props.count && (props.count as number) > 1) {
