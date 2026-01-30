@@ -17,6 +17,11 @@ export const sfUrbanConfig: VisualizationConfig = {
 
   sources: [
     {
+      id: 'fire-boundary',
+      type: 'geojson',
+      url: '/data/sf-urban/fire-boundary-1906.geojson',
+    },
+    {
       id: 'buildings',
       type: 'geojson',
       url: '/data/sf-urban/buildings.geojson',
@@ -32,6 +37,25 @@ export const sfUrbanConfig: VisualizationConfig = {
   ],
 
   layers: [
+    {
+      id: 'fire-boundary-fill',
+      sourceId: 'fire-boundary',
+      type: 'fill',
+      paint: {
+        'fill-color': '#ff4444',
+        'fill-opacity': 0.08,
+      },
+    },
+    {
+      id: 'fire-boundary-line',
+      sourceId: 'fire-boundary',
+      type: 'line',
+      paint: {
+        'line-color': '#ff4444',
+        'line-width': 2,
+        'line-opacity': 0.6,
+      },
+    },
     {
       id: 'buildings-layer',
       sourceId: 'buildings',
@@ -113,6 +137,16 @@ export const sfUrbanConfig: VisualizationConfig = {
     sumProperty: 'count',
     countLabel: 'buildings',
   },
+
+  overlays: [
+    {
+      id: 'fire-1906',
+      label: '1906 Fire Zone',
+      color: '#ff4444',
+      layers: ['fire-boundary-fill', 'fire-boundary-line'],
+      defaultVisible: true,
+    },
+  ],
 
   popup: {
     layers: ['buildings-layer', 'buildings-detailed-layer'],

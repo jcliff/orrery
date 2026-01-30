@@ -1,7 +1,26 @@
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
+/**
+ * SF Urban building data pipeline.
+ *
+ * Processes raw parcel data from SF OpenData into GeoJSON for visualization.
+ * Uses historical development zones and 1906 fire boundary for synthetic
+ * date generation when construction year is unknown.
+ *
+ * Data flow:
+ *   raw/sf-urban/sf_parcels_*.json (from sf-urban-fetch.ts)
+ *   raw/sf-urban/fire-boundary-1906-polygon.json (from sf-urban-fetch-fire-boundary.ts)
+ *     → deduplicate by coordinates
+ *     → generate/validate construction years
+ *     → cluster by block + grid cell
+ *     → processed/sf-urban/buildings.geojson (aggregated)
+ *     → processed/sf-urban/buildings-detailed.geojson (individual)
+ */
+
+import { readFile, writeFile, mkdir, readdir, access } from 'node:fs/promises';
+import { createSyntheticDateGenerator } from '../data/sf-synthetic-dates.js';
 
 const INPUT_DIR = new URL('../../data/raw/sf-urban', import.meta.url).pathname;
 const OUTPUT_DIR = new URL('../../../chrona/public/data/sf-urban', import.meta.url).pathname;
+const FIRE_BOUNDARY_PATH = `${INPUT_DIR}/fire-boundary-1906-polygon.json`;
 
 // Grid cell size in degrees (~50m at SF latitude)
 const GRID_SIZE = 0.0005;
@@ -19,7 +38,11 @@ function getGridKey(lng: number, lat: number): string {
 }
 
 // Composite key: block + grid cell (respects block boundaries, maintains granularity)
-function getClusterKey(parcelNumber: string, lng: number, lat: number): string {
+function getClusterKey(
+  parcelNumber: string,
+  lng: number,
+  lat: number
+): string {
   return `${getBlockId(parcelNumber)}:${getGridKey(lng, lat)}`;
 }
 
@@ -40,7 +63,6 @@ interface RawParcel {
 
 interface BlockCluster {
   blockId: string;
-  // Sum of coordinates for centroid calculation
   lngSum: number;
   latSum: number;
   useTypes: Record<string, { count: number; earliestYear: number }>;
@@ -49,6 +71,7 @@ interface BlockCluster {
   maxStories: number;
   earliestYear: number;
   hasEstimates: boolean;
+  hasFireZone: boolean;
 }
 
 interface GeoJSONFeature {
@@ -62,21 +85,20 @@ interface GeoJSONFeature {
 
 // Color by use/zoning type
 const USE_COLORS: Record<string, string> = {
-  'Single Family Residential': '#3498db',    // Blue
-  'Multi-Family Residential': '#9b59b6',     // Purple
-  'Commercial Retail': '#e74c3c',            // Red
-  'Commercial Office': '#e67e22',            // Orange
-  'Commercial Hotel': '#f39c12',             // Gold
-  'Commercial Misc': '#d35400',              // Dark orange
-  'Industrial': '#7f8c8d',                   // Gray
-  'Government': '#27ae60',                   // Green
-  'Miscellaneous/Mixed-Use': '#1abc9c',      // Teal
+  'Single Family Residential': '#3498db', // Blue
+  'Multi-Family Residential': '#9b59b6', // Purple
+  'Commercial Retail': '#e74c3c', // Red
+  'Commercial Office': '#e67e22', // Orange
+  'Commercial Hotel': '#f39c12', // Gold
+  'Commercial Misc': '#d35400', // Dark orange
+  Industrial: '#7f8c8d', // Gray
+  Government: '#27ae60', // Green
+  'Miscellaneous/Mixed-Use': '#1abc9c', // Teal
 };
 
 function getUseColor(use: string): string {
   return USE_COLORS[use] || '#95a5a6';
 }
-
 
 // Round coordinate to 5 decimal places
 function roundCoord(n: number): number {
@@ -94,69 +116,86 @@ interface Building {
   lat: number;
   year: number;
   estimated: boolean;
+  inFireZone: boolean;
+  method: string;
+  zone: string;
   use: string;
   address: string;
   neighborhood: string;
   parcelNumber: string;
-  unitCount: number; // How many parcels/units at this location
-  area: number; // Total sq ft (summed across all units)
-  stories: number; // Max stories
+  unitCount: number;
+  area: number;
+  stories: number;
 }
 
-// Calculate median of an array
-function median(arr: number[]): number {
-  if (arr.length === 0) return 1900; // Default fallback
-  const sorted = [...arr].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+async function checkFireBoundaryExists(): Promise<boolean> {
+  try {
+    await access(FIRE_BOUNDARY_PATH);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function main() {
-  console.log('Processing SF parcel data...');
+  console.log('Processing SF parcel data...\n');
+
+  // Check for fire boundary data
+  const hasFireBoundary = await checkFireBoundaryExists();
+  if (!hasFireBoundary) {
+    console.error('ERROR: Fire boundary data not found.');
+    console.error(`Expected: ${FIRE_BOUNDARY_PATH}`);
+    console.error(
+      '\nRun the fire boundary fetch first:\n  pnpm --filter fieldline pipeline:sf-urban-fire\n'
+    );
+    process.exit(1);
+  }
+
+  // Initialize synthetic date generator with fire boundary
+  const dateGenerator = await createSyntheticDateGenerator(FIRE_BOUNDARY_PATH);
+  const stats = dateGenerator.getStats();
+  console.log(
+    `Development zones: ${stats.zoneCount}, neighborhoods mapped: ${stats.neighborhoodsMapped}\n`
+  );
 
   // Read all batch files
   const files = await readdir(INPUT_DIR);
-  const jsonFiles = files.filter(f => f.startsWith('sf_parcels_') && f.endsWith('.json'));
+  const jsonFiles = files.filter(
+    (f) => f.startsWith('sf_parcels_') && f.endsWith('.json')
+  );
+
+  if (jsonFiles.length === 0) {
+    console.error('ERROR: No parcel data found.');
+    console.error(`Expected: ${INPUT_DIR}/sf_parcels_*.json`);
+    console.error(
+      '\nRun the parcel fetch first:\n  pnpm --filter fieldline pipeline:sf-urban-fetch\n'
+    );
+    process.exit(1);
+  }
 
   console.log(`Found ${jsonFiles.length} batch files`);
 
-  // First pass: collect years by neighborhood for median calculation
-  const yearsByNeighborhood: Record<string, number[]> = {};
+  // Load all parcels
   const allParcels: RawParcel[] = [];
-
   for (const file of jsonFiles) {
     const path = `${INPUT_DIR}/${file}`;
     const content = await readFile(path, 'utf-8');
     const parcels: RawParcel[] = JSON.parse(content);
     allParcels.push(...parcels);
-
-    for (const parcel of parcels) {
-      const year = parseInt(parcel.year_property_built, 10);
-      if (!isNaN(year) && year >= 1800 && year <= 2025) {
-        const hood = parcel.analysis_neighborhood || 'Unknown';
-        if (!yearsByNeighborhood[hood]) yearsByNeighborhood[hood] = [];
-        yearsByNeighborhood[hood].push(year);
-      }
-    }
   }
 
-  // Calculate median year per neighborhood
-  const medianByNeighborhood: Record<string, number> = {};
-  for (const [hood, years] of Object.entries(yearsByNeighborhood)) {
-    medianByNeighborhood[hood] = median(years);
-  }
+  console.log(`Loaded ${allParcels.length.toLocaleString()} parcels\n`);
 
-  console.log('\nNeighborhood median years (for estimates):');
-  for (const [hood, med] of Object.entries(medianByNeighborhood).sort((a, b) => a[1] - b[1])) {
-    console.log(`  ${hood}: ${med}`);
-  }
-
-  // Second pass: deduplicate parcels by coordinates
-  // Condo buildings have one parcel per unit, all at the same coordinates
+  // Deduplicate parcels by coordinates and generate dates
   const buildingsByCoord: Map<string, Building> = new Map();
   let totalParcels = 0;
   let knownYears = 0;
   let estimatedYears = 0;
+  let inFireZoneCount = 0;
+  let fireRebuildCount = 0;
+
+  // Track estimation methods
+  const methodCounts: Record<string, number> = {};
 
   for (const parcel of allParcels) {
     if (!parcel.the_geom) continue;
@@ -166,23 +205,41 @@ async function main() {
     const use = parcel.use_definition;
     const hood = parcel.analysis_neighborhood || 'Unknown';
 
-    // Determine year (known or estimated)
+    // Parse known year if available
     const rawYear = parseInt(parcel.year_property_built, 10);
     const hasKnownYear = !isNaN(rawYear) && rawYear >= 1800 && rawYear <= 2025;
-    const year = hasKnownYear ? rawYear : (medianByNeighborhood[hood] || 1900);
-    const estimated = !hasKnownYear;
 
-    if (hasKnownYear) {
-      knownYears++;
-    } else {
+    // Generate or validate date using historical model
+    const dateResult = dateGenerator.generateDate({
+      lng,
+      lat,
+      neighborhood: hood,
+      knownYear: hasKnownYear ? rawYear : undefined,
+    });
+
+    // Track statistics
+    if (dateResult.estimated) {
       estimatedYears++;
+    } else {
+      knownYears++;
     }
 
+    if (dateResult.inFireZone) {
+      inFireZoneCount++;
+    }
+
+    if (dateResult.method.includes('fire_rebuild')) {
+      fireRebuildCount++;
+    }
+
+    methodCounts[dateResult.method] = (methodCounts[dateResult.method] || 0) + 1;
+
     // Clean up address format
-    const address = parcel.property_location
-      ?.replace(/^0+/, '')
-      .replace(/\s+/g, ' ')
-      .trim() || '';
+    const address =
+      parcel.property_location
+        ?.replace(/^0+/, '')
+        .replace(/\s+/g, ' ')
+        .trim() || '';
 
     // Parse area and stories
     const area = parseFloat(parcel.property_area || '0') || 0;
@@ -196,8 +253,11 @@ async function main() {
       buildingsByCoord.set(coordKey, {
         lng,
         lat,
-        year,
-        estimated,
+        year: dateResult.year,
+        estimated: dateResult.estimated,
+        inFireZone: dateResult.inFireZone,
+        method: dateResult.method,
+        zone: dateResult.zone,
         use,
         address,
         neighborhood: hood,
@@ -211,23 +271,59 @@ async function main() {
       existing.unitCount++;
       existing.area += area;
       existing.stories = Math.max(existing.stories, stories);
-      if (year < existing.year) {
-        existing.year = year;
-        existing.estimated = estimated;
+      if (dateResult.year < existing.year) {
+        existing.year = dateResult.year;
+        existing.estimated = dateResult.estimated;
+        existing.inFireZone = dateResult.inFireZone;
+        existing.method = dateResult.method;
+        existing.zone = dateResult.zone;
         existing.use = use;
         existing.address = address;
       }
     }
   }
 
-  console.log(`\nDeduplicated ${totalParcels.toLocaleString()} parcels to ${buildingsByCoord.size.toLocaleString()} buildings`);
+  console.log(
+    `Deduplicated ${totalParcels.toLocaleString()} parcels to ${buildingsByCoord.size.toLocaleString()} buildings\n`
+  );
 
-  // Third pass: create features and clusters from deduplicated buildings
+  // Print statistics
+  console.log('Date generation statistics:');
+  console.log(`  Known years: ${knownYears.toLocaleString()}`);
+  console.log(`  Estimated years: ${estimatedYears.toLocaleString()}`);
+  console.log(`  In 1906 fire zone: ${inFireZoneCount.toLocaleString()}`);
+  console.log(`  Fire rebuilds (estimated): ${fireRebuildCount.toLocaleString()}`);
+  console.log('\nEstimation methods:');
+  const sortedMethods = Object.entries(methodCounts).sort((a, b) => b[1] - a[1]);
+  for (const [method, count] of sortedMethods.slice(0, 15)) {
+    console.log(`  ${method}: ${count.toLocaleString()}`);
+  }
+  if (sortedMethods.length > 15) {
+    console.log(`  ... and ${sortedMethods.length - 15} more`);
+  }
+
+  // Create features and clusters from deduplicated buildings
   const clusters: Map<string, BlockCluster> = new Map();
   const detailedFeatures: GeoJSONFeature[] = [];
 
   for (const building of buildingsByCoord.values()) {
-    const { lng, lat, year, estimated, use, address, neighborhood, parcelNumber, unitCount, area, stories } = building;
+    const {
+      lng,
+      lat,
+      year,
+      estimated,
+      inFireZone,
+      method,
+      zone,
+      use,
+      address,
+      neighborhood,
+      parcelNumber,
+      unitCount,
+      area,
+      stories,
+    } = building;
+
     const startTime = `${year}-01-01T00:00:00Z`;
 
     // Add to detailed features
@@ -236,6 +332,9 @@ async function main() {
       properties: {
         year,
         estimated,
+        inFireZone,
+        method,
+        zone,
         use,
         address,
         neighborhood,
@@ -266,6 +365,7 @@ async function main() {
         maxStories: 0,
         earliestYear: year,
         hasEstimates: false,
+        hasFireZone: false,
       };
       clusters.set(clusterKey, cluster);
     }
@@ -291,11 +391,12 @@ async function main() {
     if (estimated) {
       cluster.hasEstimates = true;
     }
+    if (inFireZone) {
+      cluster.hasFireZone = true;
+    }
   }
 
-  console.log(`Created ${clusters.size} clusters (block-bounded grid cells)`);
-  console.log(`  Parcels with known years: ${knownYears.toLocaleString()}`);
-  console.log(`  Parcels with estimated years: ${estimatedYears.toLocaleString()}`);
+  console.log(`\nCreated ${clusters.size} clusters (block-bounded grid cells)`);
 
   // Convert clusters to aggregated features
   const aggregatedFeatures: GeoJSONFeature[] = [];
@@ -327,6 +428,7 @@ async function main() {
         area: Math.round(cluster.totalArea),
         stories: Math.round(cluster.maxStories),
         estimated: cluster.hasEstimates,
+        inFireZone: cluster.hasFireZone,
         startTime,
         color: getUseColor(dominantUse),
       },
@@ -338,27 +440,45 @@ async function main() {
   }
 
   // Sort by year
-  detailedFeatures.sort((a, b) => (a.properties.year as number) - (b.properties.year as number));
-  aggregatedFeatures.sort((a, b) => (a.properties.year as number) - (b.properties.year as number));
+  detailedFeatures.sort(
+    (a, b) => (a.properties.year as number) - (b.properties.year as number)
+  );
+  aggregatedFeatures.sort(
+    (a, b) => (a.properties.year as number) - (b.properties.year as number)
+  );
 
   // Create output directory
   await mkdir(OUTPUT_DIR, { recursive: true });
 
   // Write aggregated GeoJSON
   const aggregatedPath = `${OUTPUT_DIR}/buildings.geojson`;
-  await writeFile(aggregatedPath, JSON.stringify({
-    type: 'FeatureCollection',
-    features: aggregatedFeatures,
-  }));
+  await writeFile(
+    aggregatedPath,
+    JSON.stringify({
+      type: 'FeatureCollection',
+      features: aggregatedFeatures,
+    })
+  );
   console.log(`\nWrote ${aggregatedPath} (${aggregatedFeatures.length} clusters)`);
 
   // Write detailed GeoJSON
   const detailedPath = `${OUTPUT_DIR}/buildings-detailed.geojson`;
-  await writeFile(detailedPath, JSON.stringify({
-    type: 'FeatureCollection',
-    features: detailedFeatures,
-  }));
-  console.log(`Wrote ${detailedPath} (${detailedFeatures.length} buildings)`);
+  await writeFile(
+    detailedPath,
+    JSON.stringify({
+      type: 'FeatureCollection',
+      features: detailedFeatures,
+    })
+  );
+  console.log(
+    `Wrote ${detailedPath} (${detailedFeatures.length} buildings)`
+  );
+
+  // Copy fire boundary to output
+  const fireBoundaryContent = await readFile(FIRE_BOUNDARY_PATH, 'utf-8');
+  const fireBoundaryOutputPath = `${OUTPUT_DIR}/fire-boundary-1906.geojson`;
+  await writeFile(fireBoundaryOutputPath, fireBoundaryContent);
+  console.log(`Wrote ${fireBoundaryOutputPath}`);
 }
 
 main().catch(console.error);

@@ -47,6 +47,16 @@ export interface LegendItem {
   shape?: 'line' | 'circle' | 'square';
 }
 
+export interface OverlayConfig {
+  id: string;
+  label: string;
+  color: string;
+  /** Layer IDs to toggle */
+  layers: string[];
+  /** Default visibility */
+  defaultVisible?: boolean;
+}
+
 export interface SpeedOption {
   label: string;
   /** Speed in simulated seconds per real second */
@@ -124,6 +134,9 @@ export interface VisualizationConfig {
     layers: string[];
     render: (properties: Record<string, unknown>) => string;
   };
+
+  /** Optional overlay toggles */
+  overlays?: OverlayConfig[];
 }
 
 /** Registry mapping visualization IDs to their configs */

@@ -8,6 +8,8 @@
     "build": "tsc",
     "pipeline": "node --import tsx src/pipelines/hurricanes.ts",
     "pipeline:railroads": "node --import tsx src/pipelines/railroads.ts",
+    "pipeline:sf-urban-fetch": "node --import tsx src/pipelines/sf-urban-fetch.ts",
+    "pipeline:sf-urban-fire": "node --import tsx src/pipelines/sf-urban-fetch-fire-boundary.ts",
     "pipeline:sf-urban": "node --import tsx src/pipelines/sf-urban.ts",
     "pipeline:sf-urban-tiles": "node --import tsx src/pipelines/sf-urban-tiles.ts",
     "pipeline:palo-alto-fetch": "node --import tsx src/pipelines/palo-alto-fetch.ts",

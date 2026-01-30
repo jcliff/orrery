@@ -35,6 +35,22 @@ export function VisualizationView({ config }: VisualizationViewProps) {
   );
   const [accumulatePaths, setAccumulatePaths] = useState(true);
 
+  // Initialize overlay visibility from config defaults
+  const [overlayVisibility, setOverlayVisibility] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const overlay of config.overlays ?? []) {
+      initial[overlay.id] = overlay.defaultVisible ?? true;
+    }
+    return initial;
+  });
+
+  const handleToggleOverlay = useCallback((overlayId: string) => {
+    setOverlayVisibility((prev) => ({
+      ...prev,
+      [overlayId]: !prev[overlayId],
+    }));
+  }, []);
+
   // Load data
   const { data, loading, error, filterData } = useTemporalData(config);
   const dataLoaded = !loading && !error && Object.keys(data).length > 0;
@@ -192,6 +208,20 @@ export function VisualizationView({ config }: VisualizationViewProps) {
       }
     }
   }, [config, mapLoaded, currentTime, yearRange, accumulatePaths, filterData]);
+
+  // Toggle overlay layer visibility
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    for (const overlay of config.overlays ?? []) {
+      const visibility = overlayVisibility[overlay.id] ? 'visible' : 'none';
+      for (const layerId of overlay.layers) {
+        if (map.current.getLayer(layerId)) {
+          map.current.setLayoutProperty(layerId, 'visibility', visibility);
+        }
+      }
+    }
+  }, [config.overlays, overlayVisibility, mapLoaded]);
 
   // Update GPU-filtered layers (for PMTiles)
   useEffect(() => {
@@ -405,7 +435,11 @@ export function VisualizationView({ config }: VisualizationViewProps) {
       <div ref={setMapContainer} style={{ width: '100%', height: '100%' }} />
 
       <Title config={config} count={itemCount} />
-      <Legend config={config} />
+      <Legend
+        config={config}
+        overlayVisibility={overlayVisibility}
+        onToggleOverlay={handleToggleOverlay}
+      />
 
       {timeline && (
         <TimelineControls
