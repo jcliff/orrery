@@ -1,163 +1,48 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Dev context for Claude Code.
 
-## Project Overview
-
-Orrery is a timelapse visualization platform with two packages:
-
-- **Fieldline** (`fieldline/`): Data acquisition and normalization layer
-- **Chrona** (`chrona/`): Unified visualization app + rendering engine library using MapLibre GL JS
-
-The Chrona app hosts four visualizations accessible via dropdown navigation:
-- Atlantic Hurricane Tracks (1851–present)
-- US Railroad Network Expansion
-- San Francisco Building Development (1848–2022)
-- Palo Alto Urban Development (1880–present)
-
-## Development Commands
+## Commands
 
 ```bash
-# Install all workspace dependencies
-pnpm install
+pnpm install              # Install dependencies
+pnpm dev                  # Run chrona app (http://localhost:5173)
+pnpm build                # Build all packages
+pnpm lint                 # Lint all packages
 
-# Run the unified Chrona app
-pnpm dev
-
-# Build all packages
-pnpm build
-
-# Build only the Chrona library (for external consumption)
-pnpm --filter chrona build:lib
-
-# Run data pipelines
-pnpm pipeline:hurricanes
-pnpm pipeline:railroads
-pnpm pipeline:sf-urban
-pnpm pipeline:sf-urban-tiles  # Requires tippecanoe
-pnpm pipeline:palo-alto
-pnpm pipeline:palo-alto-tiles # Requires tippecanoe
+# Pipelines (run from root)
+pnpm --filter fieldline pipeline:hurricanes
+pnpm --filter fieldline pipeline:sf-urban
+pnpm --filter fieldline pipeline:sf-urban-tiles  # Requires tippecanoe
 ```
 
-## Architecture
+## Structure
 
-### Unified App Structure
+- `fieldline/` — Data acquisition & ETL. Pipelines in `src/pipelines/`, parsers in `src/sources/`
+- `chrona/` — Rendering app. Visualization configs in `src/visualizations/`, components in `src/components/`
 
-```
-chrona/
-├── src/
-│   ├── index.ts              # Library exports (Timeline, filterByTime, etc.)
-│   ├── main.tsx              # App entry point
-│   ├── App.tsx               # Root with header + hash routing
-│   ├── core/                 # Library core (unchanged)
-│   │   ├── timeline.ts
-│   │   ├── temporal-filter.ts
-│   │   └── temporal-expression.ts
-│   ├── visualizations/       # Per-visualization configs
-│   │   ├── types.ts          # VisualizationConfig interface
-│   │   ├── registry.ts       # Map of all visualizations
-│   │   ├── hurricanes.ts
-│   │   ├── railroads.ts
-│   │   ├── sf-urban.ts
-│   │   └── palo-alto.ts
-│   ├── components/           # Shared UI components
-│   │   ├── Header.tsx
-│   │   ├── VisualizationView.tsx
-│   │   ├── TimelineControls.tsx
-│   │   ├── Legend.tsx
-│   │   └── Title.tsx
-│   └── hooks/
-│       ├── useTimeline.ts
-│       └── useTemporalData.ts
-├── public/
-│   └── data/                 # All visualization data
-│       ├── hurricanes/
-│       ├── railroads/
-│       ├── sf-urban/
-│       └── palo-alto/
-└── index.html
-```
+Data flow: Raw source → Fieldline → GeoJSON/PMTiles in `chrona/public/data/` → MapLibre GL
 
-### Data Flow
+## Key Files
 
-```
-Raw Data (NOAA, Shapefiles, etc.) → Fieldline (parse/normalize) → GeoJSON/PMTiles → Chrona (render) → MapLibre GL
-```
+- `chrona/src/visualizations/types.ts` — VisualizationConfig interface
+- `chrona/src/components/VisualizationView.tsx` — Main map + timeline component
+- `chrona/src/core/temporal-expression.ts` — GPU filter expressions for PMTiles
+- `fieldline/src/data/sf-development-zones.ts` — Historical zone definitions for synthetic dates
+- `fieldline/src/data/sf-synthetic-dates.ts` — Synthetic date generation algorithm
 
-### Fieldline Data Pipeline
+## SF Urban Two-Tier Rendering
 
-Pipelines output directly to `chrona/public/data/{visualization}/`:
+- **Zoom < 15:** Aggregated GeoJSON clusters (~34k points), JS filtering
+- **Zoom >= 15:** PMTiles vector tiles (212k buildings), GPU-evaluated filters
 
-Key types:
-- `Storm`: id, name, basin, year, track points, peak intensity, landfalls, category
-- `TrackPoint`: timestamp, lat/lon, wind, pressure, status (TD/TS/HU/EX/etc.)
-- `StormStatus`: TD, TS, HU, EX, SD, SS, LO, WV, DB
+## Color Palettes
 
-### Chrona Rendering Engine
+**Land Use (SF Urban):**
+- Single Family: `#3498db`, Multi-Family: `#9b59b6`, Retail: `#e74c3c`
+- Office: `#e67e22`, Hotel: `#f39c12`, Industrial: `#7f8c8d`
+- Government: `#27ae60`, Mixed Use: `#1abc9c`
 
-Core library exports (in `chrona/src/index.ts`):
-- **Timeline**: Master clock controlling playback (play/pause/seek/speed)
-- **filterByTime**: JavaScript temporal filtering for GeoJSON
-- **createTemporalFilter**: GPU-evaluated MapLibre filter expressions
-- **createOpacityExpression**: Age-based opacity for fading effects
-
-### Two-Tier Rendering (SF Urban, Palo Alto)
-
-Large datasets use zoom-based LOD switching:
-
-**Zoomed out (< zoom 15):** Aggregated GeoJSON clusters
-- Buildings grouped by city block + grid cell
-- JavaScript filtering via `filterByTime()`
-
-**Zoomed in (>= zoom 15):** PMTiles vector tiles
-- Full dataset as individual points/polygons
-- GPU-evaluated filters via `map.setFilter()` — 60fps performance
-- Temporal expressions in `chrona/src/core/temporal-expression.ts`
-
-### Hash-Based Routing
-
-The app uses simple hash-based routing (no React Router needed):
-- `/#/hurricanes` - Atlantic Hurricane Tracks
-- `/#/railroads` - US Railroad Development
-- `/#/sf-urban` - San Francisco Urban Development
-- `/#/palo-alto` - Palo Alto Urban Development
-
-### TimelineControls Variants
-
-The unified TimelineControls component supports two layouts:
-- **full**: Centered floating panel with year range sliders (hurricanes, railroads)
-- **compact**: Bottom bar layout (sf-urban, palo-alto)
-
-### Saffir-Simpson Color Palette
-
-| Category | Color |
-|----------|-------|
-| TD | `#6ec4e8` (light blue) |
-| TS | `#4daf4a` (green) |
-| Cat 1 | `#ffe066` (yellow) |
-| Cat 2 | `#ffb347` (orange) |
-| Cat 3 | `#ff6b6b` (red-orange) |
-| Cat 4 | `#d63031` (red) |
-| Cat 5 | `#6c3483` (purple) |
-
-## Tech Stack
-
-- **Monorepo**: pnpm workspaces
-- **Language**: TypeScript
-- **Rendering**: MapLibre GL JS
-- **UI**: React
-- **Build**: Vite
-- **Data format**: GeoJSON, PMTiles
-
-## Key Design Decisions
-
-- Unified app with dropdown navigation (single deployable)
-- Hash-based routing for simplicity
-- Config-driven visualizations for consistency
-- Two-tier rendering for large datasets
-- Dark basemap for visual contrast
-- GeoJSON as the interchange format
-
-## Reference
-
-Read `architecture.md` for complete design specifications including schemas, pipeline details, and milestone plans.
+**Saffir-Simpson (Hurricanes):**
+- TD: `#6ec4e8`, TS: `#4daf4a`, Cat 1: `#ffe066`, Cat 2: `#ffb347`
+- Cat 3: `#ff6b6b`, Cat 4: `#d63031`, Cat 5: `#6c3483`
