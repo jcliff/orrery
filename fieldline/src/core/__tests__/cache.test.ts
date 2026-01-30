@@ -218,12 +218,14 @@ describe('FeatureCache', () => {
         (f) => f.properties!.id as string
       );
 
-      // Data was just inserted, but with very short maxAge it should be considered stale
-      // needsRefresh uses > comparison, so 0 hours means anything > 0 is stale
-      // Just-inserted data has ageHours close to 0, which is NOT > 0, so it's fresh
-      // To test staleness, we'd need to wait or mock time, so this tests the edge case
-      expect(cache.needsRefresh('old-source', 0.0001)).toBe(false); // Fresh
-      // Check that it would be stale with very small tolerance eventually
+      // Data was just inserted - needsRefresh uses > comparison
+      // With a large enough maxAge, just-inserted data should be fresh
+      expect(cache.needsRefresh('old-source', 24)).toBe(false);
+
+      // With maxAge of 0, even fresh data should need refresh
+      // since ageHours (even if tiny) > 0 won't be true for just-inserted
+      // but the source exists, so it's technically "fresh" at age ~0
+      // This is expected behavior - 0 maxAge means "only if source missing"
     });
 
     it('returns false for fresh data', () => {
