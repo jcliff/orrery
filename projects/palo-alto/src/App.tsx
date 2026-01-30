@@ -8,14 +8,14 @@ import {
 } from 'chrona';
 import { TimelineControls } from './components/TimelineControls';
 
-const PARCELS_URL = '/parcels.geojson';
+const PARCELS_AGGREGATED_URL = '/parcels.geojson';
 const PARCELS_DETAILED_URL = '/parcels-detailed.geojson';
-const ZOOM_THRESHOLD = 14; // Switch to detailed polygon view at this zoom level
+const ZOOM_THRESHOLD = 15; // Show polygons at zoom 15+
 
 export default function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
-  const [parcelsData, setParcelsData] = useState<TemporalFeatureCollection | null>(null);
+  const [aggregatedData, setAggregatedData] = useState<TemporalFeatureCollection | null>(null);
   const [detailedData, setDetailedData] = useState<TemporalFeatureCollection | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [yearRange, setYearRange] = useState<[number, number]>([1880, 2025]);
@@ -24,13 +24,13 @@ export default function App() {
 
   // Create timeline once we have data
   const timeline = useMemo(() => {
-    if (!parcelsData) return null;
+    if (!aggregatedData) return null;
     return new Timeline({
       start: new Date('1880-01-01'),
       end: new Date('2026-01-01'),
       speed: 86400 * 365 * 2, // 2 years/sec
     });
-  }, [parcelsData]);
+  }, [aggregatedData]);
 
   // Subscribe to timeline ticks (throttled to 100ms for performance)
   useEffect(() => {
@@ -59,27 +59,24 @@ export default function App() {
 
   // Load parcels data on mount
   useEffect(() => {
-    // Load aggregated data (for zoomed out view)
-    fetch(PARCELS_URL)
+    fetch(PARCELS_AGGREGATED_URL)
       .then((res) => res.json())
-      .then((data) => setParcelsData(data as TemporalFeatureCollection));
+      .then((data) => setAggregatedData(data as TemporalFeatureCollection));
 
-    // Load detailed data (for zoomed in polygon view)
     fetch(PARCELS_DETAILED_URL)
       .then((res) => res.json())
       .then((data) => setDetailedData(data as TemporalFeatureCollection));
   }, []);
 
-  // Filter aggregated parcels based on current time AND year range
-  const filteredParcels = useMemo(() => {
-    if (!parcelsData || !currentTime) return null;
+  // Shared filter logic
+  const filterData = useCallback((data: TemporalFeatureCollection | null) => {
+    if (!data || !currentTime) return null;
 
     const currentMs = currentTime.getTime();
     const TEN_YEARS_MS = 10 * 365 * 24 * 60 * 60 * 1000;
     const TWENTY_YEARS_MS = 20 * 365 * 24 * 60 * 60 * 1000;
 
-    const timeFiltered = filterByTime(parcelsData, currentTime, { mode: 'cumulative' });
-
+    const timeFiltered = filterByTime(data, currentTime, { mode: 'cumulative' });
     const [startYear, endYear] = yearRange;
 
     const features = timeFiltered.features
@@ -112,73 +109,22 @@ export default function App() {
 
         return {
           ...f,
-          properties: {
-            ...f.properties,
-            opacity,
-          },
+          properties: { ...f.properties, opacity },
         };
       });
 
-    return {
-      type: 'FeatureCollection' as const,
-      features,
-    };
-  }, [parcelsData, currentTime, yearRange, accumulatePaths]);
+    return { type: 'FeatureCollection' as const, features };
+  }, [currentTime, yearRange, accumulatePaths]);
 
-  // Filter detailed parcels based on current time AND year range
-  const filteredDetailedParcels = useMemo(() => {
-    if (!detailedData || !currentTime) return null;
+  const filteredAggregated = useMemo(
+    () => filterData(aggregatedData),
+    [filterData, aggregatedData]
+  );
 
-    const currentMs = currentTime.getTime();
-    const TEN_YEARS_MS = 10 * 365 * 24 * 60 * 60 * 1000;
-    const TWENTY_YEARS_MS = 20 * 365 * 24 * 60 * 60 * 1000;
-
-    const timeFiltered = filterByTime(detailedData, currentTime, { mode: 'cumulative' });
-
-    const [startYear, endYear] = yearRange;
-
-    const features = timeFiltered.features
-      .filter((f) => {
-        const year = f.properties.year as number;
-        if (year < startYear || year > endYear) return false;
-
-        if (!accumulatePaths) {
-          const startTime = new Date(f.properties.startTime as string).getTime();
-          const age = currentMs - startTime;
-          if (age > TWENTY_YEARS_MS) return false;
-        }
-
-        return true;
-      })
-      .map((f) => {
-        let opacity = 0.7;
-
-        if (!accumulatePaths) {
-          const startTime = new Date(f.properties.startTime as string).getTime();
-          const age = currentMs - startTime;
-
-          if (age <= TEN_YEARS_MS) {
-            opacity = 0.8;
-          } else {
-            const fadeProgress = (age - TEN_YEARS_MS) / (TWENTY_YEARS_MS - TEN_YEARS_MS);
-            opacity = 0.8 * (1 - fadeProgress);
-          }
-        }
-
-        return {
-          ...f,
-          properties: {
-            ...f.properties,
-            opacity,
-          },
-        };
-      });
-
-    return {
-      type: 'FeatureCollection' as const,
-      features,
-    };
-  }, [detailedData, currentTime, yearRange, accumulatePaths]);
+  const filteredDetailed = useMemo(
+    () => filterData(detailedData),
+    [filterData, detailedData]
+  );
 
   const handleYearRangeChange = useCallback((start: number, end: number) => {
     setYearRange([start, end]);
@@ -221,13 +167,13 @@ export default function App() {
     map.current.on('load', () => {
       if (!map.current) return;
 
-      // Aggregated source (GeoJSON points - for zoomed out view)
-      map.current.addSource('parcels', {
+      // Aggregated source (points for zoomed out)
+      map.current.addSource('parcels-aggregated', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       });
 
-      // Detailed source (GeoJSON polygons - for zoomed in view)
+      // Detailed source (polygons for zoomed in)
       map.current.addSource('parcels-detailed', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -235,26 +181,24 @@ export default function App() {
 
       // Aggregated layer (circles when zoomed out)
       map.current.addLayer({
-        id: 'parcels-layer',
+        id: 'parcels-circles',
         type: 'circle',
-        source: 'parcels',
+        source: 'parcels-aggregated',
         maxzoom: ZOOM_THRESHOLD,
         paint: {
           'circle-radius': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            10, ['max', 2, ['min', 8, ['/', ['sqrt', ['get', 'area']], 500]]],
-            13, ['max', 4, ['min', 12, ['/', ['sqrt', ['get', 'area']], 200]]],
+            'interpolate', ['linear'], ['zoom'],
+            10, ['max', 2, ['min', 6, ['/', ['sqrt', ['get', 'area']], 500]]],
+            14, ['max', 4, ['min', 10, ['/', ['sqrt', ['get', 'area']], 200]]],
           ],
           'circle-color': ['get', 'color'],
           'circle-opacity': ['get', 'opacity'],
         },
       });
 
-      // Detailed layer - POLYGON FILL (shown when zoomed in)
+      // Detailed fill layer (polygons when zoomed in)
       map.current.addLayer({
-        id: 'parcels-detailed-fill',
+        id: 'parcels-fill',
         type: 'fill',
         source: 'parcels-detailed',
         minzoom: ZOOM_THRESHOLD,
@@ -264,9 +208,9 @@ export default function App() {
         },
       });
 
-      // Detailed layer - POLYGON OUTLINE
+      // Detailed outline layer
       map.current.addLayer({
-        id: 'parcels-detailed-outline',
+        id: 'parcels-outline',
         type: 'line',
         source: 'parcels-detailed',
         minzoom: ZOOM_THRESHOLD,
@@ -279,60 +223,42 @@ export default function App() {
 
       setMapLoaded(true);
 
-      // Mouse events for all interactive layers
-      for (const layerId of ['parcels-layer', 'parcels-detailed-fill']) {
+      // Mouse events for interactive layers
+      for (const layerId of ['parcels-circles', 'parcels-fill']) {
         map.current.on('mouseenter', layerId, () => {
           if (map.current) map.current.getCanvas().style.cursor = 'pointer';
         });
-
         map.current.on('mouseleave', layerId, () => {
           if (map.current) map.current.getCanvas().style.cursor = '';
         });
       }
 
-      // Click handler for aggregated layer
-      map.current.on('click', 'parcels-layer', (e) => {
+      // Click handler for aggregated (circles)
+      map.current.on('click', 'parcels-circles', (e) => {
         if (!e.features || !e.features[0] || !map.current) return;
-
         const props = e.features[0].properties;
-        const year = props.year;
-        const estimated = props.estimated;
-        const use = props.use || 'Unknown';
-        const count = props.count || 1;
-
         new maplibregl.Popup()
           .setLngLat(e.lngLat)
-          .setHTML(
-            `
-            <strong>${count} parcel${count > 1 ? 's' : ''}</strong><br/>
-            Earliest: ${year}${estimated ? ' (includes estimates)' : ''}<br/>
-            Primary use: ${use}
-          `
-          )
+          .setHTML(`
+            <strong>${props.count || 1} parcel${(props.count || 1) > 1 ? 's' : ''}</strong><br/>
+            Earliest: ${props.year}${props.estimated ? ' (includes estimates)' : ''}<br/>
+            Primary use: ${props.use || 'Unknown'}
+          `)
           .addTo(map.current);
       });
 
-      // Click handler for detailed fill layer
-      map.current.on('click', 'parcels-detailed-fill', (e) => {
+      // Click handler for detailed (polygons)
+      map.current.on('click', 'parcels-fill', (e) => {
         if (!e.features || !e.features[0] || !map.current) return;
-
         const props = e.features[0].properties;
-        const year = props.year;
-        const estimated = props.estimated;
-        const use = props.use || 'Unknown';
-        const address = props.address || '';
-        const apn = props.apn || '';
-
         new maplibregl.Popup()
           .setLngLat(e.lngLat)
-          .setHTML(
-            `
-            ${address ? `<strong>${address}</strong><br/>` : ''}
-            Built: ${estimated ? '~' : ''}${year}${estimated ? ' (est.)' : ''}
-            ${use ? `<br/>Use: ${use}` : ''}
-            ${apn ? `<br/><small>APN: ${apn}</small>` : ''}
-          `
-          )
+          .setHTML(`
+            ${props.address ? `<strong>${props.address}</strong><br/>` : ''}
+            Built: ${props.estimated ? '~' : ''}${props.year}${props.estimated ? ' (est.)' : ''}
+            ${props.use ? `<br/>Use: ${props.use}` : ''}
+            ${props.apn ? `<br/><small>APN: ${props.apn}</small>` : ''}
+          `)
           .addTo(map.current);
       });
     });
@@ -343,29 +269,22 @@ export default function App() {
     };
   }, []);
 
-  // Update aggregated layer data (GeoJSON)
+  // Update aggregated layer data
   useEffect(() => {
-    if (!map.current || !mapLoaded || !filteredParcels) return;
+    if (!map.current || !mapLoaded || !filteredAggregated) return;
+    const source = map.current.getSource('parcels-aggregated') as maplibregl.GeoJSONSource;
+    if (source) source.setData(filteredAggregated as GeoJSON.FeatureCollection);
+  }, [filteredAggregated, mapLoaded]);
 
-    const source = map.current.getSource('parcels') as maplibregl.GeoJSONSource;
-    if (source) {
-      source.setData(filteredParcels as GeoJSON.FeatureCollection);
-    }
-  }, [filteredParcels, mapLoaded]);
-
-  // Update detailed layer data (GeoJSON polygons)
+  // Update detailed layer data
   useEffect(() => {
-    if (!map.current || !mapLoaded || !filteredDetailedParcels) return;
-
+    if (!map.current || !mapLoaded || !filteredDetailed) return;
     const source = map.current.getSource('parcels-detailed') as maplibregl.GeoJSONSource;
-    if (source) {
-      source.setData(filteredDetailedParcels as GeoJSON.FeatureCollection);
-    }
-  }, [filteredDetailedParcels, mapLoaded]);
+    if (source) source.setData(filteredDetailed as GeoJSON.FeatureCollection);
+  }, [filteredDetailed, mapLoaded]);
 
-  const parcelCount = filteredParcels?.features.reduce(
-    (sum, f) => sum + (((f.properties as Record<string, unknown>).count as number) || 1),
-    0
+  const parcelCount = filteredAggregated?.features.reduce(
+    (sum, f) => sum + ((f.properties.count as number) || 1), 0
   ) ?? 0;
 
   return (
