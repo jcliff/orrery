@@ -1,3 +1,17 @@
 packages:
-  - "fieldline"
-  - "chrona"
+  - fieldline
+  - chrona
+
+allowBuild: better-sqlite3
+
+onlyBuiltDependencies:
+  - '-'
+  - '3'
+  - b
+  - e
+  - i
+  - l
+  - q
+  - r
+  - s
+  - t

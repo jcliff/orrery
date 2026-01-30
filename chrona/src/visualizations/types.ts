@@ -4,6 +4,18 @@ import type {
   DataDrivenPropertyValueSpecification,
 } from 'maplibre-gl';
 
+/** Geographic bounds as [west, south, east, north] */
+export type Bounds = [number, number, number, number];
+
+/** Region definition for viewport-aware loading */
+export interface Region {
+  id: string;
+  name: string;
+  bounds: Bounds;
+  center: [number, number];
+  zoom: number;
+}
+
 export interface DataSource {
   id: string;
   type: 'geojson' | 'pmtiles';
@@ -13,6 +25,10 @@ export interface DataSource {
   /** Zoom range for this source (for LOD switching) */
   minzoom?: number;
   maxzoom?: number;
+  /** Geographic bounds for viewport-aware loading */
+  bounds?: Bounds;
+  /** Region ID this source belongs to (for lazy loading) */
+  region?: string;
 }
 
 export interface LayerConfig {
@@ -72,6 +88,9 @@ export interface VisualizationConfig {
   /** Map defaults */
   center: [number, number];
   zoom: number;
+
+  /** Regions for viewport-aware loading (optional) */
+  regions?: Region[];
 
   /** Timeline settings */
   timeRange: {

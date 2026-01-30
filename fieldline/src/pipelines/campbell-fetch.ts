@@ -1,94 +1,75 @@
+/**
+ * Campbell parcel fetch pipeline.
+ * Uses the common parallel fetcher with ArcGIS adapter.
+ */
 import { writeFile, mkdir } from 'node:fs/promises';
+import { parallelFetch, createArcGISFetcher } from '../core/fetcher.js';
+import { getCache, geoJsonFeatureId } from '../core/cache.js';
+import { getSource } from '../registry/sources.js';
 
 const OUTPUT_DIR = new URL('../../data/raw/campbell', import.meta.url).pathname;
-const API_URL = 'https://gis.campbellca.gov/arcgis/rest/services/BaseFeatureLayers/ParcelsPublic/FeatureServer/0/query';
-const BATCH_SIZE = 2000; // ArcGIS default max is often 2000
-const OUT_FIELDS = [
-  'APN',
-  'YEAR_BUILT',
-  'EFF_YEAR_BUILT',
-  'UseCodeDescription',
-  'SITUSFULL',
-  'TTL_SQFT_ALL',
-].join(',');
-
-interface ArcGISResponse {
-  type: 'FeatureCollection';
-  features: unknown[];
-  exceededTransferLimit?: boolean;
-}
-
-async function fetchBatch(offset: number): Promise<ArcGISResponse> {
-  const params = new URLSearchParams({
-    where: '1=1',
-    outFields: OUT_FIELDS,
-    returnGeometry: 'true',
-    outSR: '4326', // WGS84 lat/lon
-    f: 'geojson',
-    resultOffset: offset.toString(),
-    resultRecordCount: BATCH_SIZE.toString(),
-  });
-
-  const url = `${API_URL}?${params}`;
-  console.log(`Fetching offset ${offset}...`);
-
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-  }
-
-  return res.json();
-}
+const SOURCE = getSource('campbell');
 
 async function main() {
-  console.log('Fetching Campbell parcel data from ArcGIS REST API...');
-  console.log(`Endpoint: ${API_URL}\n`);
+  console.log(`Fetching ${SOURCE.name} from ${SOURCE.attribution}...`);
+  console.log(`Endpoint: ${(SOURCE.api as { url: string }).url}\n`);
+
+  // Check cache first
+  const cache = await getCache();
+  const meta = cache.getSourceMetadata(SOURCE.id);
+
+  if (meta && !cache.needsRefresh(SOURCE.id, 24)) {
+    console.log(
+      `Using cached data (${meta.recordCount.toLocaleString()} records from ${meta.lastFetched})`
+    );
+    const cached = cache.getFeatures<GeoJSON.Feature>(SOURCE.id);
+
+    await mkdir(OUTPUT_DIR, { recursive: true });
+    const outputPath = `${OUTPUT_DIR}/parcels.geojson`;
+    const geojson: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: cached,
+    };
+    await writeFile(outputPath, JSON.stringify(geojson));
+    console.log(`Wrote ${outputPath} (${cached.length} parcels from cache)`);
+    return;
+  }
 
   await mkdir(OUTPUT_DIR, { recursive: true });
 
-  let offset = 0;
-  let batchNum = 0;
-  let total = 0;
-  const allFeatures: unknown[] = [];
+  // Create fetcher from source registry
+  const api = SOURCE.api as { type: 'arcgis'; url: string; outFields: string[]; where?: string };
+  const fetcher = createArcGISFetcher(api.url, api.outFields, api.where);
 
-  while (true) {
-    const data = await fetchBatch(offset);
-    const features = data.features || [];
+  // Fetch with parallel batching
+  // Note: Campbell server limits to 1000 records per request
+  const result = await parallelFetch<GeoJSON.Feature>(fetcher, {
+    concurrency: 4,
+    batchSize: 1000,
+    maxBatches: 100,
+    onProgress: (progress) => {
+      console.log(`  ${progress.message}`);
+    },
+  });
 
-    if (features.length === 0) {
-      console.log('No more data');
-      break;
-    }
+  console.log(`\nFetched ${result.totalFetched.toLocaleString()} features`);
 
-    allFeatures.push(...features);
-    total += features.length;
-    console.log(`  Batch ${batchNum}: ${features.length} features (total: ${total})`);
-
-    // Increment by actual features received (server may return less than requested)
-    offset += features.length;
-    batchNum++;
-
-    // ArcGIS indicates more data available with exceededTransferLimit
-    if (!data.exceededTransferLimit) {
-      console.log('Transfer complete (no more data indicated)');
-      break;
-    }
-
-    // Safety limit
-    if (batchNum > 50) {
-      console.log('Safety limit reached (50 batches)');
-      break;
-    }
-  }
+  // Cache the results
+  cache.upsertFeatures(SOURCE.id, result.features, (f, i) =>
+    geoJsonFeatureId(f, i, 'APN')
+  );
+  cache.updateSourceMetadata(SOURCE.id, {
+    recordCount: result.totalFetched,
+  });
 
   // Write combined GeoJSON
   const outputPath = `${OUTPUT_DIR}/parcels.geojson`;
-  const combined = {
+  const combined: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
-    features: allFeatures,
+    features: result.features,
   };
   await writeFile(outputPath, JSON.stringify(combined));
-  console.log(`\nWrote ${outputPath} (${total} parcels)`);
+  console.log(`Wrote ${outputPath} (${result.totalFetched} parcels)`);
 }
 
 main().catch(console.error);

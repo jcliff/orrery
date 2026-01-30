@@ -1,197 +1,240 @@
+/**
+ * Clark County parcel fetch pipeline.
+ * Uses multi-endpoint fetcher to combine data from multiple ArcGIS layers.
+ */
 import { writeFile, mkdir, open } from 'node:fs/promises';
+import {
+  parallelFetch,
+  fetchMultiEndpoint,
+  createArcGISFetcher,
+  type EndpointConfig,
+} from '../core/fetcher.js';
+import { getCache } from '../core/cache.js';
+import { getSource, CLARK_COUNTY_ENDPOINTS } from '../registry/sources.js';
 
 const OUTPUT_DIR = new URL('../../data/raw/clark-county', import.meta.url).pathname;
+const SOURCE = getSource('clark-county');
 const BATCH_SIZE = 2000;
 
-// Clark County ArcGIS REST endpoints
-const PARCELS_URL = 'https://maps.clarkcountynv.gov/arcgis/rest/services/Assessor/ParcelHistory/MapServer/0/query';
-const PARCEL_POLYGONS_URL = 'https://maps.clarkcountynv.gov/arcgis/rest/services/Assessor/Layers/MapServer/1/query';
-const SUBDIVISIONS_URL = 'https://maps.clarkcountynv.gov/arcgis/rest/services/Assessor/AOSubdivisions/MapServer/0/query';
+// Common fetch options
+const fetchOptions = {
+  batchSize: BATCH_SIZE,
+  maxBatches: 600,
+  retry: {
+    maxRetries: 3,
+    baseDelayMs: 1000,
+    maxDelayMs: 30000,
+  },
+};
 
-// Added parcels by year (these have actual dates)
-const ADDED_LAYERS = [
-  { year: 2017, url: 'https://maps.clarkcountynv.gov/arcgis/rest/services/Assessor/Added_2017/MapServer/0/query' },
-  { year: 2018, url: 'https://maps.clarkcountynv.gov/arcgis/rest/services/Assessor/Added_2018/MapServer/0/query' },
-  { year: 2019, url: 'https://maps.clarkcountynv.gov/arcgis/rest/services/Assessor/Added_2019/MapServer/0/query' },
-  { year: 2020, url: 'https://maps.clarkcountynv.gov/arcgis/rest/services/Assessor/Added_2020/MapServer/0/query' },
-  { year: 2021, url: 'https://maps.clarkcountynv.gov/arcgis/rest/services/Assessor/added_current/FeatureServer/0/query' },
-];
-
-interface ArcGISResponse {
-  type?: 'FeatureCollection';
-  features: unknown[];
-  exceededTransferLimit?: boolean;
-}
-
-async function getRecordCount(baseUrl: string): Promise<number> {
-  const params = new URLSearchParams({
-    where: '1=1',
-    returnCountOnly: 'true',
-    f: 'json',
-  });
-
-  const url = `${baseUrl}?${params}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return data.count || 0;
-}
-
-async function fetchBatch(baseUrl: string, offset: number, outFields: string): Promise<ArcGISResponse> {
-  const params = new URLSearchParams({
-    where: '1=1',
-    outFields,
-    returnGeometry: 'true',
-    outSR: '4326',
-    f: 'geojson',
-    resultOffset: offset.toString(),
-    resultRecordCount: BATCH_SIZE.toString(),
-  });
-
-  const url = `${baseUrl}?${params}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-  }
-
-  return res.json();
-}
-
-async function fetchAllFeatures(
-  baseUrl: string,
-  outFields: string,
-  label: string,
-  maxBatches = 500
-): Promise<unknown[]> {
-  const totalRecords = await getRecordCount(baseUrl);
-  console.log(`${label}: ${totalRecords.toLocaleString()} records`);
-
-  let offset = 0;
-  let batchNum = 0;
-  const allFeatures: unknown[] = [];
-
-  while (offset < totalRecords && batchNum < maxBatches) {
-    const data = await fetchBatch(baseUrl, offset, outFields);
-    const features = data.features || [];
-
-    if (features.length === 0) break;
-
-    allFeatures.push(...features);
-    process.stdout.write(`\r  Fetched ${allFeatures.length.toLocaleString()} / ${totalRecords.toLocaleString()}`);
-
-    offset += BATCH_SIZE;
-    batchNum++;
-  }
-
-  console.log(); // newline
-  return allFeatures;
-}
-
-// Stream features directly to file to avoid memory issues with large datasets
-async function fetchAndStreamToFile(
-  baseUrl: string,
-  outFields: string,
-  label: string,
+// Stream features to GeoJSON file (for large datasets)
+async function streamToGeoJSON(
+  config: { type: 'arcgis'; url: string; outFields: string[]; where?: string },
   outputPath: string,
-  maxBatches = 500
+  label: string
 ): Promise<number> {
-  const totalRecords = await getRecordCount(baseUrl);
-  console.log(`${label}: ${totalRecords.toLocaleString()} records`);
-
   const file = await open(outputPath, 'w');
   await file.write('{"type":"FeatureCollection","features":[');
 
-  let offset = 0;
-  let batchNum = 0;
   let totalFetched = 0;
   let isFirst = true;
 
-  while (offset < totalRecords && batchNum < maxBatches) {
-    const data = await fetchBatch(baseUrl, offset, outFields);
-    const features = data.features || [];
-
-    if (features.length === 0) break;
-
-    for (const feature of features) {
-      if (!isFirst) {
-        await file.write(',');
+  await parallelFetch<GeoJSON.Feature>(config, {
+    ...fetchOptions,
+    concurrency: 1, // Sequential for ordered output
+    skipBuffer: true,
+    onFeatures: async (features) => {
+      for (const feature of features) {
+        if (!isFirst) {
+          await file.write(',');
+        }
+        await file.write(JSON.stringify(feature));
+        isFirst = false;
       }
-      await file.write(JSON.stringify(feature));
-      isFirst = false;
-    }
-
-    totalFetched += features.length;
-    process.stdout.write(`\r  Fetched ${totalFetched.toLocaleString()} / ${totalRecords.toLocaleString()}`);
-
-    offset += BATCH_SIZE;
-    batchNum++;
-  }
+      totalFetched += features.length;
+    },
+    onProgress: (progress) => {
+      process.stdout.write(
+        `\r  ${label}: ${totalFetched.toLocaleString()} / ${progress.total?.toLocaleString() || '?'}`
+      );
+    },
+  });
 
   await file.write(']}');
   await file.close();
-
   console.log(); // newline
+
   return totalFetched;
 }
 
 async function main() {
-  console.log('Fetching Clark County data from ArcGIS REST APIs...\n');
+  console.log(`Fetching ${SOURCE.name} from ${SOURCE.attribution}...`);
+  console.log(`Multi-endpoint source with ${Object.keys(CLARK_COUNTY_ENDPOINTS).length} layers\n`);
+
+  // Check cache first
+  const cache = await getCache();
+  const meta = cache.getSourceMetadata(SOURCE.id);
+
+  if (meta && !cache.needsRefresh(SOURCE.id, 24)) {
+    console.log(
+      `Using cached data (${meta.recordCount.toLocaleString()} records from ${meta.lastFetched})`
+    );
+    console.log('Note: To force refresh, clear cache or wait 24h');
+    return;
+  }
 
   await mkdir(OUTPUT_DIR, { recursive: true });
+  const startTime = Date.now();
+  let totalRecords = 0;
 
   // 1. Fetch parcel polygons (full geometry) - stream to file due to size
   console.log('=== Parcel Polygons ===');
-  const polygonFields = 'APN,PARCELTYPE,Label_Class,ASSR_ACRES';
+  const polygonFields = ['APN', 'PARCELTYPE', 'Label_Class', 'ASSR_ACRES'];
   const polygonsPath = `${OUTPUT_DIR}/parcel-polygons.geojson`;
-  const polygonCount = await fetchAndStreamToFile(PARCEL_POLYGONS_URL, polygonFields, 'Parcel Polygons', polygonsPath, 600);
+  const polygonCount = await streamToGeoJSON(
+    createArcGISFetcher(CLARK_COUNTY_ENDPOINTS.polygons, polygonFields),
+    polygonsPath,
+    'Parcel Polygons'
+  );
   console.log(`  Wrote ${polygonsPath} (${polygonCount.toLocaleString()} polygons)\n`);
+  totalRecords += polygonCount;
 
   // 2. Fetch parcel points (for quick spatial joins)
   console.log('=== Parcel Points ===');
-  const parcelFields = 'APN,PARCELTYPE,TAX_DIST,CALC_ACRES,ASSR_ACRES,Label_Class';
-  const parcels = await fetchAllFeatures(PARCELS_URL, parcelFields, 'Parcels', 600);
+  const parcelFields = ['APN', 'PARCELTYPE', 'TAX_DIST', 'CALC_ACRES', 'ASSR_ACRES', 'Label_Class'];
+  const parcelsResult = await parallelFetch<GeoJSON.Feature>(
+    createArcGISFetcher(CLARK_COUNTY_ENDPOINTS.parcels, parcelFields),
+    {
+      ...fetchOptions,
+      concurrency: 4,
+      onProgress: (progress) => {
+        process.stdout.write(
+          `\r  Parcels: ${progress.fetched.toLocaleString()} / ${progress.total?.toLocaleString() || '?'}`
+        );
+      },
+    }
+  );
+  console.log();
 
   const parcelsPath = `${OUTPUT_DIR}/parcels.geojson`;
-  await writeFile(parcelsPath, JSON.stringify({
-    type: 'FeatureCollection',
-    features: parcels,
-  }));
-  console.log(`  Wrote ${parcelsPath}\n`);
+  await writeFile(
+    parcelsPath,
+    JSON.stringify({
+      type: 'FeatureCollection',
+      features: parcelsResult.features,
+    })
+  );
+  console.log(`  Wrote ${parcelsPath} (${parcelsResult.totalFetched.toLocaleString()} points)\n`);
+  totalRecords += parcelsResult.totalFetched;
 
   // 3. Fetch subdivisions with geometry (for spatial join)
   console.log('=== Subdivisions ===');
-  const subFields = 'SubName,Doc_Num,Map_Book,Map_Page,Map_Type';
-  const subdivisions = await fetchAllFeatures(SUBDIVISIONS_URL, subFields, 'Subdivisions', 100);
+  const subFields = ['SubName', 'Doc_Num', 'Map_Book', 'Map_Page', 'Map_Type'];
+  const subdivisionsResult = await parallelFetch<GeoJSON.Feature>(
+    createArcGISFetcher(CLARK_COUNTY_ENDPOINTS.subdivisions, subFields),
+    {
+      ...fetchOptions,
+      maxBatches: 100,
+      concurrency: 4,
+      onProgress: (progress) => {
+        process.stdout.write(
+          `\r  Subdivisions: ${progress.fetched.toLocaleString()} / ${progress.total?.toLocaleString() || '?'}`
+        );
+      },
+    }
+  );
+  console.log();
 
   const subdivisionsPath = `${OUTPUT_DIR}/subdivisions.geojson`;
-  await writeFile(subdivisionsPath, JSON.stringify({
-    type: 'FeatureCollection',
-    features: subdivisions,
-  }));
-  console.log(`  Wrote ${subdivisionsPath}\n`);
+  await writeFile(
+    subdivisionsPath,
+    JSON.stringify({
+      type: 'FeatureCollection',
+      features: subdivisionsResult.features,
+    })
+  );
+  console.log(`  Wrote ${subdivisionsPath} (${subdivisionsResult.totalFetched.toLocaleString()} subdivisions)\n`);
 
-  // 4. Fetch dated parcels from Added layers
+  // 4. Fetch dated parcels from Added layers using multi-endpoint fetcher
   console.log('=== Added Parcels (with dates) ===');
-  const addedFields = 'apn,add_dt,src_yr,str_num,str,str_sfx,city,zip,asd_val,tax_val';
-  const allAdded: unknown[] = [];
+  const addedFields = ['apn', 'add_dt', 'src_yr', 'str_num', 'str', 'str_sfx', 'city', 'zip', 'asd_val', 'tax_val'];
 
-  for (const layer of ADDED_LAYERS) {
-    try {
-      const features = await fetchAllFeatures(layer.url, addedFields, `Added ${layer.year}`, 50);
-      allAdded.push(...features);
-    } catch (err) {
-      console.log(`  Warning: Could not fetch Added ${layer.year}: ${err}`);
+  const addedEndpoints: EndpointConfig[] = [
+    {
+      id: 'added-2017',
+      config: createArcGISFetcher(CLARK_COUNTY_ENDPOINTS.added2017, addedFields),
+      optional: true,
+      metadata: { sourceYear: 2017 },
+    },
+    {
+      id: 'added-2018',
+      config: createArcGISFetcher(CLARK_COUNTY_ENDPOINTS.added2018, addedFields),
+      optional: true,
+      metadata: { sourceYear: 2018 },
+    },
+    {
+      id: 'added-2019',
+      config: createArcGISFetcher(CLARK_COUNTY_ENDPOINTS.added2019, addedFields),
+      optional: true,
+      metadata: { sourceYear: 2019 },
+    },
+    {
+      id: 'added-2020',
+      config: createArcGISFetcher(CLARK_COUNTY_ENDPOINTS.added2020, addedFields),
+      optional: true,
+      metadata: { sourceYear: 2020 },
+    },
+    {
+      id: 'added-current',
+      config: createArcGISFetcher(CLARK_COUNTY_ENDPOINTS.addedCurrent, addedFields),
+      optional: true,
+      metadata: { sourceYear: 2021 },
+    },
+  ];
+
+  const addedResult = await fetchMultiEndpoint<GeoJSON.Feature>(
+    {
+      endpoints: addedEndpoints,
+      merge: 'dedupe',
+      idProperty: 'apn',
+    },
+    {
+      ...fetchOptions,
+      maxBatches: 50,
+      concurrency: 4,
+    }
+  );
+
+  const addedPath = `${OUTPUT_DIR}/added-parcels.geojson`;
+  await writeFile(
+    addedPath,
+    JSON.stringify({
+      type: 'FeatureCollection',
+      features: addedResult.features,
+    })
+  );
+  console.log(`  Wrote ${addedPath} (${addedResult.totalFetched.toLocaleString()} parcels)\n`);
+  totalRecords += addedResult.totalFetched;
+
+  // Report endpoint results
+  console.log('Endpoint summary:');
+  for (const [id, stats] of Object.entries(addedResult.byEndpoint)) {
+    if (stats.error) {
+      console.log(`  ${id}: FAILED - ${stats.error}`);
+    } else {
+      console.log(`  ${id}: ${stats.fetched.toLocaleString()} features`);
     }
   }
 
-  const addedPath = `${OUTPUT_DIR}/added-parcels.geojson`;
-  await writeFile(addedPath, JSON.stringify({
-    type: 'FeatureCollection',
-    features: allAdded,
-  }));
-  console.log(`  Wrote ${addedPath} (${allAdded.length.toLocaleString()} total)\n`);
+  // Update cache metadata
+  cache.updateSourceMetadata(SOURCE.id, {
+    recordCount: totalRecords,
+  });
 
-  console.log('Done fetching Clark County data!');
-  console.log(`\nFiles written to ${OUTPUT_DIR}/`);
+  const elapsed = (Date.now() - startTime) / 1000;
+  console.log(`\nDone fetching Clark County data!`);
+  console.log(`Total: ${totalRecords.toLocaleString()} features in ${Math.round(elapsed / 60)} minutes`);
+  console.log(`Files written to ${OUTPUT_DIR}/`);
 }
 
 main().catch(console.error);

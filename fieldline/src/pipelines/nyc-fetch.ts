@@ -1,113 +1,160 @@
-import { createWriteStream } from 'node:fs';
+/**
+ * NYC PLUTO fetch pipeline.
+ * Uses the common parallel fetcher with streaming NDJSON output.
+ * Converts lat/lon fields to GeoJSON point geometry.
+ */
+import { createWriteStream, WriteStream } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
+import { parallelFetch } from '../core/fetcher.js';
+import { getCache } from '../core/cache.js';
+import { getSource } from '../registry/sources.js';
+import type { Feature, Point } from 'geojson';
 
 const OUTPUT_DIR = new URL('../../data/raw/nyc', import.meta.url).pathname;
-const API_URL = 'https://data.cityofnewyork.us/resource/64uk-42ks.json';
-const BATCH_SIZE = 50000; // Socrata allows up to 50k per request
+const SOURCE = getSource('nyc-pluto');
 
-// Key fields from PLUTO's 87 columns
-const FIELDS = [
-  'bbl',           // Borough-Block-Lot identifier
-  'yearbuilt',
-  'landuse',       // Land use category (1-11)
-  'bldgclass',     // Building class
-  'address',
-  'zipcode',
-  'borough',
-  'block',
-  'lot',
-  'numfloors',
-  'unitsres',      // Residential units
-  'unitstotal',
-  'lotarea',
-  'bldgarea',
-  'assesstot',     // Total assessed value
-  'latitude',
-  'longitude',
-].join(',');
-
-async function getRecordCount(): Promise<number> {
-  const url = `${API_URL}?$select=count(*)`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return parseInt(data[0].count, 10) || 0;
+interface PLUTORecord {
+  bbl: string;
+  yearbuilt: string;
+  landuse: string;
+  bldgclass: string;
+  address: string;
+  zipcode: string;
+  borough: string;
+  block: string;
+  lot: string;
+  numfloors: string;
+  unitsres: string;
+  unitstotal: string;
+  lotarea: string;
+  bldgarea: string;
+  assesstot: string;
+  latitude: string;
+  longitude: string;
 }
 
-async function fetchBatch(offset: number, retries = 3): Promise<unknown[]> {
-  const params = new URLSearchParams({
-    '$select': FIELDS,
-    '$limit': BATCH_SIZE.toString(),
-    '$offset': offset.toString(),
-    '$order': 'bbl',
-  });
+// Convert PLUTO record with lat/lon to GeoJSON Feature
+function toGeoJSONFeature(record: PLUTORecord): Feature<Point> | null {
+  const lat = parseFloat(record.latitude);
+  const lon = parseFloat(record.longitude);
 
-  const url = `${API_URL}?${params}`;
-
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-      }
-      return res.json();
-    } catch (err) {
-      if (attempt === retries) throw err;
-      console.log(`  Retry ${attempt}/${retries} for offset ${offset}...`);
-      await new Promise(r => setTimeout(r, 2000 * attempt));
-    }
+  // Skip records without valid coordinates
+  if (isNaN(lat) || isNaN(lon) || lat === 0 || lon === 0) {
+    return null;
   }
-  throw new Error('Unreachable');
+
+  return {
+    type: 'Feature',
+    properties: {
+      bbl: record.bbl,
+      yearbuilt: record.yearbuilt ? parseInt(record.yearbuilt, 10) : null,
+      landuse: record.landuse,
+      bldgclass: record.bldgclass,
+      address: record.address,
+      zipcode: record.zipcode,
+      borough: record.borough,
+      block: record.block,
+      lot: record.lot,
+      numfloors: record.numfloors ? parseFloat(record.numfloors) : null,
+      unitsres: record.unitsres ? parseInt(record.unitsres, 10) : null,
+      unitstotal: record.unitstotal ? parseInt(record.unitstotal, 10) : null,
+      lotarea: record.lotarea ? parseFloat(record.lotarea) : null,
+      bldgarea: record.bldgarea ? parseFloat(record.bldgarea) : null,
+      assesstot: record.assesstot ? parseFloat(record.assesstot) : null,
+    },
+    geometry: {
+      type: 'Point',
+      coordinates: [lon, lat],
+    },
+  };
+}
+
+// Stream features to file as NDJSON
+function writeFeaturesToStream(stream: WriteStream, features: Feature[]): void {
+  for (const feature of features) {
+    stream.write(JSON.stringify(feature) + '\n');
+  }
 }
 
 async function main() {
-  console.log('Fetching NYC PLUTO data from Socrata API...');
-  console.log(`Endpoint: ${API_URL}\n`);
+  console.log(`Fetching ${SOURCE.name} from ${SOURCE.attribution}...`);
+  console.log(`Endpoint: ${(SOURCE.api as { url: string }).url}`);
+  console.log(`Expected: ~${SOURCE.expectedCount?.toLocaleString()} records\n`);
+
+  // Check cache first
+  const cache = await getCache();
+  const meta = cache.getSourceMetadata(SOURCE.id);
+
+  if (meta && !cache.needsRefresh(SOURCE.id, 24)) {
+    console.log(
+      `Using cached data (${meta.recordCount.toLocaleString()} records from ${meta.lastFetched})`
+    );
+    console.log('Note: To force refresh, clear cache or wait 24h');
+    return;
+  }
 
   await mkdir(OUTPUT_DIR, { recursive: true });
 
-  const totalRecords = await getRecordCount();
-  console.log(`Total records to fetch: ${totalRecords.toLocaleString()}`);
-  console.log(`Estimated batches: ${Math.ceil(totalRecords / BATCH_SIZE)}\n`);
-
+  // Prepare streaming output
   const outputPath = `${OUTPUT_DIR}/pluto.ndjson`;
   const stream = createWriteStream(outputPath);
-
-  let offset = 0;
-  let batchNum = 0;
-  let total = 0;
+  let totalWritten = 0;
+  let skippedNoCoords = 0;
   const startTime = Date.now();
 
-  while (total < totalRecords) {
-    const records = await fetchBatch(offset);
+  // Get API config from source registry
+  const api = SOURCE.api as { type: 'socrata'; url: string; fields: string[]; where?: string };
 
-    if (records.length === 0) {
-      console.log('No more data returned');
-      break;
+  // Use streaming fetch with NDJSON output
+  await parallelFetch<PLUTORecord>(
+    {
+      type: 'socrata',
+      url: api.url,
+      fields: api.fields,
+      where: api.where,
+    },
+    {
+      concurrency: 1, // Sequential for ordered NDJSON output
+      batchSize: 50000, // Socrata allows up to 50k per request
+      maxBatches: 100, // Allow up to 5M records
+      delayMs: 500,
+      delayEvery: 1, // Delay after every batch
+      skipBuffer: true,
+      onFeatures: (records) => {
+        const features: Feature[] = [];
+        for (const record of records) {
+          const feature = toGeoJSONFeature(record);
+          if (feature) {
+            features.push(feature);
+          } else {
+            skippedNoCoords++;
+          }
+        }
+        writeFeaturesToStream(stream, features);
+        totalWritten += features.length;
+      },
+      onProgress: (progress) => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const rate = (totalWritten + skippedNoCoords) / elapsed;
+        const remaining = progress.total
+          ? (progress.total - totalWritten - skippedNoCoords) / rate
+          : 0;
+
+        console.log(
+          `Batch ${progress.batchNum}: ${totalWritten.toLocaleString()} features ` +
+            `(${skippedNoCoords.toLocaleString()} skipped no coords) - ` +
+            `ETA: ${Math.round(remaining / 60)}min`
+        );
+      },
+      retry: {
+        maxRetries: 3,
+        baseDelayMs: 2000,
+        maxDelayMs: 30000,
+      },
     }
+  );
 
-    for (const record of records) {
-      stream.write(JSON.stringify(record) + '\n');
-    }
-
-    total += records.length;
-
-    const elapsed = (Date.now() - startTime) / 1000;
-    const rate = total / elapsed;
-    const remaining = (totalRecords - total) / rate;
-
-    console.log(
-      `Batch ${batchNum}: ${total.toLocaleString()} / ${totalRecords.toLocaleString()} ` +
-      `(${((total / totalRecords) * 100).toFixed(1)}%) - ` +
-      `ETA: ${Math.round(remaining / 60)}min`
-    );
-
-    offset += BATCH_SIZE;
-    batchNum++;
-
-    // Small delay to be nice to the server
-    await new Promise(r => setTimeout(r, 500));
-  }
-
+  // Close the stream
   await new Promise<void>((resolve, reject) => {
     stream.end((err: Error | null) => {
       if (err) reject(err);
@@ -115,8 +162,14 @@ async function main() {
     });
   });
 
+  // Update cache metadata
+  cache.updateSourceMetadata(SOURCE.id, {
+    recordCount: totalWritten,
+  });
+
   const elapsed = (Date.now() - startTime) / 1000;
-  console.log(`\nWrote ${total.toLocaleString()} tax lots to ${outputPath}`);
+  console.log(`\nWrote ${totalWritten.toLocaleString()} tax lots to ${outputPath}`);
+  console.log(`Skipped ${skippedNoCoords.toLocaleString()} records without coordinates`);
   console.log(`Done in ${Math.round(elapsed / 60)} minutes`);
 }
 
