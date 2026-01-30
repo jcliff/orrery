@@ -68,7 +68,10 @@
     "pipeline:walnut-creek-tiles": "node --import tsx src/pipelines/walnut-creek-tiles.ts",
     "pipeline:brentwood-fetch": "node --import tsx src/pipelines/brentwood-fetch.ts",
     "pipeline:brentwood": "node --import tsx src/pipelines/brentwood.ts",
-    "pipeline:brentwood-tiles": "node --import tsx src/pipelines/brentwood-tiles.ts"
+    "pipeline:brentwood-tiles": "node --import tsx src/pipelines/brentwood-tiles.ts",
+    "pipeline:berkeley-fetch": "node --import tsx src/pipelines/berkeley-fetch.ts",
+    "pipeline:berkeley": "node --import tsx src/pipelines/berkeley.ts",
+    "pipeline:berkeley-tiles": "node --import tsx src/pipelines/berkeley-tiles.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

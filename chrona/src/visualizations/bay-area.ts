@@ -185,6 +185,20 @@ export const bayAreaConfig: VisualizationConfig = {
       sourceLayer: 'parcels',
       minzoom: ZOOM_THRESHOLD,
     },
+    // Berkeley sources
+    {
+      id: 'berkeley-parcels-aggregated',
+      type: 'geojson',
+      url: '/data/berkeley/parcels.geojson',
+      maxzoom: ZOOM_THRESHOLD,
+    },
+    {
+      id: 'berkeley-parcels-tiles',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/berkeley/parcels.pmtiles',
+      sourceLayer: 'parcels',
+      minzoom: ZOOM_THRESHOLD,
+    },
   ],
 
   layers: [
@@ -740,6 +754,52 @@ export const bayAreaConfig: VisualizationConfig = {
         useGpuFilter: true,
       },
     },
+    // Berkeley layers (zoomed out)
+    {
+      id: 'berkeley-parcels-circles',
+      sourceId: 'berkeley-parcels-aggregated',
+      type: 'circle',
+      maxzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10, ['max', 2, ['min', 6, ['/', ['sqrt', ['get', 'area']], 500]]],
+          14, ['max', 4, ['min', 10, ['/', ['sqrt', ['get', 'area']], 200]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': ['get', 'opacity'],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    // Berkeley layers (zoomed in - PMTiles)
+    {
+      id: 'berkeley-parcels-detailed',
+      sourceId: 'berkeley-parcels-tiles',
+      sourceLayer: 'parcels',
+      type: 'circle',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+          18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+        useGpuFilter: true,
+      },
+    },
   ],
 
   legend: {
@@ -792,6 +852,7 @@ export const bayAreaConfig: VisualizationConfig = {
       'pittsburg-parcels-circles', 'pittsburg-parcels-detailed',
       'walnut-creek-parcels-circles', 'walnut-creek-parcels-detailed',
       'brentwood-parcels-circles', 'brentwood-parcels-detailed',
+      'berkeley-parcels-circles', 'berkeley-parcels-detailed',
     ],
     render: (props) => {
       // Aggregated cluster

@@ -452,6 +452,53 @@ export const BRENTWOOD: SourceDefinition = {
   attributionUrl: 'https://www.brentwoodca.gov',
 };
 
+export const BERKELEY: SourceDefinition = {
+  id: 'berkeley',
+  name: 'Berkeley Parcels',
+  country: 'US',
+  region: 'California',
+  city: 'Berkeley',
+  api: {
+    type: 'arcgis',
+    url: 'https://gis.cityofberkeley.info/arcgis/rest/services/Planning/Land_Use_Planning/MapServer/24/query',
+    outFields: [
+      'APN',
+      'YearBuilt',
+      'EffectiveY',
+      'UseCode',
+      'SitusStree',
+      'SitusStr_1',
+      'SitusCity',
+      'BuildingAr',
+      'LotSize',
+      'Stories',
+      'Units',
+      'Beds',
+      'Baths',
+    ],
+    where: 'EffectiveY IS NOT NULL AND EffectiveY > 1800',
+  },
+  schema: {
+    sourceId: 'berkeley',
+    fieldMapping: {
+      id: 'APN',
+      yearBuilt: ['YearBuilt', 'EffectiveY'],
+      effectiveYear: 'EffectiveY',
+      landUse: 'UseCode',
+      address: ['SitusStree', 'SitusStr_1'],
+      city: 'SitusCity',
+      area: 'BuildingAr',
+      stories: 'Stories',
+      units: 'Units',
+    },
+    areaUnit: 'sqft',
+  },
+  expectedCount: 30000,
+  updateFrequency: 'monthly',
+  attribution: 'City of Berkeley',
+  attributionUrl: 'https://www.cityofberkeley.info',
+};
+
 export const WALNUT_CREEK: SourceDefinition = {
   id: 'walnut-creek',
   name: 'Walnut Creek Parcels',
@@ -953,6 +1000,7 @@ export const SOURCES: Record<string, SourceDefinition> = {
   pittsburg: PITTSBURG,
   'walnut-creek': WALNUT_CREEK,
   brentwood: BRENTWOOD,
+  berkeley: BERKELEY,
   // Other US
   'la-county': LA_COUNTY,
   'nyc-pluto': NYC_PLUTO,
