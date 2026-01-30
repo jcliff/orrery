@@ -415,6 +415,43 @@ export const SANTA_ROSA: SourceDefinition = {
   attributionUrl: 'https://www.srcity.org',
 };
 
+export const BRENTWOOD: SourceDefinition = {
+  id: 'brentwood',
+  name: 'Brentwood Parcels',
+  country: 'US',
+  region: 'California',
+  city: 'Brentwood',
+  api: {
+    type: 'arcgis',
+    url: 'https://gis.brentwoodca.gov/arcgis/rest/services/Addresses/MapServer/0/query',
+    outFields: [
+      'APN',
+      'YR_HS_BLT',
+      'Address',
+      'Street',
+      'DESC_',
+      'TOT_AREA',
+      'ZONE',
+    ],
+    where: "YR_HS_BLT IS NOT NULL AND YR_HS_BLT <> '' AND YR_HS_BLT <> '0'",
+  },
+  schema: {
+    sourceId: 'brentwood',
+    fieldMapping: {
+      id: 'APN',
+      yearBuilt: 'YR_HS_BLT',
+      landUse: 'DESC_',
+      address: 'Address',
+      area: 'TOT_AREA',
+    },
+    areaUnit: 'sqft',
+  },
+  expectedCount: 25000,
+  updateFrequency: 'monthly',
+  attribution: 'City of Brentwood',
+  attributionUrl: 'https://www.brentwoodca.gov',
+};
+
 export const WALNUT_CREEK: SourceDefinition = {
   id: 'walnut-creek',
   name: 'Walnut Creek Parcels',
@@ -915,6 +952,7 @@ export const SOURCES: Record<string, SourceDefinition> = {
   'santa-rosa': SANTA_ROSA,
   pittsburg: PITTSBURG,
   'walnut-creek': WALNUT_CREEK,
+  brentwood: BRENTWOOD,
   // Other US
   'la-county': LA_COUNTY,
   'nyc-pluto': NYC_PLUTO,
