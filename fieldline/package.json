@@ -41,7 +41,13 @@
     "pipeline:amsterdam-tiles": "node --import tsx src/pipelines/amsterdam-tiles.ts",
     "pipeline:paris-fetch": "node --import tsx src/pipelines/paris-fetch.ts",
     "pipeline:paris": "node --import tsx src/pipelines/paris.ts",
-    "pipeline:paris-tiles": "node --import tsx src/pipelines/paris-tiles.ts"
+    "pipeline:paris-tiles": "node --import tsx src/pipelines/paris-tiles.ts",
+    "pipeline:copenhagen-fetch": "node --import tsx src/pipelines/copenhagen-fetch.ts",
+    "pipeline:copenhagen": "node --import tsx src/pipelines/copenhagen.ts",
+    "pipeline:copenhagen-tiles": "node --import tsx src/pipelines/copenhagen-tiles.ts",
+    "pipeline:vienna-fetch": "node --import tsx src/pipelines/vienna-fetch.ts",
+    "pipeline:vienna": "node --import tsx src/pipelines/vienna.ts",
+    "pipeline:vienna-tiles": "node --import tsx src/pipelines/vienna-tiles.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

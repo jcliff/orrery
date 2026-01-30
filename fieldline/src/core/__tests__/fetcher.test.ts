@@ -539,7 +539,7 @@ describe('Generic Adapter', () => {
           `https://api.example.com/data?skip=${offset}&take=${batchSize}`,
         extractFeatures: (response) =>
           (response as { records: unknown[] }).records,
-        hasMore: (response) => (response as { hasMore: boolean }).hasMore,
+        hasMore: (response, _features, _offset) => (response as { hasMore: boolean }).hasMore,
       },
       { batchSize: 100, maxBatches: 1 }
     );
@@ -560,7 +560,7 @@ describe('Generic Adapter', () => {
         buildUrl: (offset, batchSize) =>
           `https://api.example.com/data?skip=${offset}&take=${batchSize}`,
         extractFeatures: (response) => (response as { data: unknown[] }).data,
-        hasMore: () => false,
+        hasMore: (_response, _features, _offset) => false,
         getCount: async () => 2,
       },
       { batchSize: 100, maxBatches: 10 }

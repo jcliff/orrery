@@ -193,7 +193,7 @@ export interface GenericConfig {
   /** Extract features array from response */
   extractFeatures: (response: unknown) => unknown[];
   /** Check if there are more results */
-  hasMore: (response: unknown, features: unknown[]) => boolean;
+  hasMore: (response: unknown, features: unknown[], offset: number) => boolean;
   /** Optional: get total count */
   getCount?: () => Promise<number | null>;
 }
@@ -344,7 +344,7 @@ export async function parallelFetch<T = unknown>(
         const url = config.buildUrl(offset, batchSize);
         const response = await fetchWithRetry<unknown>(url, retryOpts);
         features = config.extractFeatures(response) as T[];
-        hasMore = config.hasMore(response, features);
+        hasMore = config.hasMore(response, features, offset);
       }
 
       if (features.length === 0) {

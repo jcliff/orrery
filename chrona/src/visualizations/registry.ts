@@ -9,6 +9,8 @@ import { laCountyConfig } from './la-county';
 import { nycConfig } from './nyc';
 import { amsterdamConfig } from './amsterdam';
 import { parisConfig } from './paris';
+import { copenhagenConfig } from './copenhagen';
+import { viennaConfig } from './vienna';
 
 export const visualizations: VisualizationRegistry = {
   hurricanes: hurricanesConfig,
@@ -21,4 +23,6 @@ export const visualizations: VisualizationRegistry = {
   'nyc': nycConfig,
   'amsterdam': amsterdamConfig,
   'paris': parisConfig,
+  'copenhagen': copenhagenConfig,
+  'vienna': viennaConfig,
 };

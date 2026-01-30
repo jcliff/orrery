@@ -512,6 +512,97 @@ export const PARIS_APUR: SourceDefinition = {
   notes: 'AN_CONST is year, C_PERCONST is construction period code (1-12).',
 };
 
+export const COPENHAGEN_BBR: SourceDefinition = {
+  id: 'copenhagen',
+  name: 'Copenhagen Buildings (BBR)',
+  country: 'DK',
+  region: 'Hovedstaden',
+  city: 'Copenhagen',
+  api: {
+    type: 'generic',
+    buildUrl: (offset, batchSize) => {
+      // Danish BBR API with Copenhagen bbox
+      const params = new URLSearchParams({
+        format: 'geojson',
+        bbox: '12.45,55.6,12.7,55.75',
+        srid: '4326',
+        startindex: offset.toString(),
+        count: batchSize.toString(),
+      });
+      return `https://services.datafordeler.dk/BBR/BBRPublic/1/rest/bygning?${params}`;
+    },
+    extractFeatures: (response: unknown) => {
+      const data = response as { features?: unknown[] };
+      return data.features || [];
+    },
+    hasMore: (_response: unknown, features: unknown[], _offset: number) => {
+      return features.length > 0;
+    },
+  },
+  schema: {
+    sourceId: 'copenhagen',
+    fieldMapping: {
+      id: 'id_lokalId',
+      yearBuilt: 'byg026Opførelsesår',
+      landUse: 'byg021BygningensAnvendelse',
+      area: 'byg038SamletBygningsareal',
+    },
+    areaUnit: 'sqm',
+  },
+  expectedCount: 200000,
+  updateFrequency: 'daily',
+  attribution: 'Datafordeler.dk / BBR',
+  attributionUrl: 'https://datafordeler.dk',
+  license: 'Open Data DK',
+  notes: 'Danish national building registry (BBR). byg026Opførelsesår is construction year.',
+};
+
+export const VIENNA_OGD: SourceDefinition = {
+  id: 'vienna',
+  name: 'Vienna Buildings (Bauperioden)',
+  country: 'AT',
+  region: 'Wien',
+  city: 'Vienna',
+  api: {
+    type: 'generic',
+    buildUrl: (offset, batchSize) => {
+      // Vienna WFS API
+      const params = new URLSearchParams({
+        service: 'WFS',
+        version: '2.0.0',
+        request: 'GetFeature',
+        typeName: 'BAUABORABFGEOGEBAEUDEOGD',
+        outputFormat: 'json',
+        srsName: 'EPSG:4326',
+        startIndex: offset.toString(),
+        count: batchSize.toString(),
+      });
+      return `https://data.wien.gv.at/daten/geo?${params}`;
+    },
+    extractFeatures: (response: unknown) => {
+      const data = response as { features?: unknown[] };
+      return data.features || [];
+    },
+    hasMore: (_response: unknown, features: unknown[], _offset: number) => {
+      return features.length > 0;
+    },
+  },
+  schema: {
+    sourceId: 'vienna',
+    fieldMapping: {
+      id: 'OBJECTID',
+      landUse: 'NUTZUNG',
+      area: 'FLAECHE',
+    },
+  },
+  expectedCount: 150000,
+  updateFrequency: 'monthly',
+  attribution: 'Stadt Wien - data.wien.gv.at',
+  attributionUrl: 'https://data.wien.gv.at',
+  license: 'CC BY 4.0',
+  notes: 'BAUPERIODE is construction period code, not exact year.',
+};
+
 export const LONDON_PLANNING: SourceDefinition = {
   id: 'london-planning',
   name: 'London Planning Applications',
@@ -528,7 +619,7 @@ export const LONDON_PLANNING: SourceDefinition = {
       const data = response as { result?: { records?: unknown[] } };
       return data.result?.records || [];
     },
-    hasMore: (response: unknown, features: unknown[]) => {
+    hasMore: (response: unknown, features: unknown[], _offset: number) => {
       const data = response as { result?: { total?: number } };
       return features.length > 0 && (data.result?.total || 0) > features.length;
     },
@@ -572,6 +663,8 @@ export const SOURCES: Record<string, SourceDefinition> = {
   'london-planning': LONDON_PLANNING,
   amsterdam: AMSTERDAM_BAG,
   paris: PARIS_APUR,
+  copenhagen: COPENHAGEN_BBR,
+  vienna: VIENNA_OGD,
 };
 
 export function getSource(id: string): SourceDefinition {
