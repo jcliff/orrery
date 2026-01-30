@@ -8,7 +8,6 @@ Dev context for Claude Code.
 pnpm install              # Install dependencies
 pnpm dev                  # Run chrona app (http://localhost:5173)
 pnpm build                # Build all packages
-pnpm lint                 # Lint all packages
 
 # Pipelines (run from root)
 pnpm --filter fieldline pipeline:railroads
