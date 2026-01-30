@@ -4,6 +4,8 @@ import { railroadsConfig } from './railroads';
 import { sfUrbanConfig } from './sf-urban';
 import { paloAltoConfig } from './palo-alto';
 import { bayAreaConfig } from './bay-area';
+import { clarkCountyConfig } from './clark-county';
+import { laCountyConfig } from './la-county';
 
 export const visualizations: VisualizationRegistry = {
   hurricanes: hurricanesConfig,
@@ -11,4 +13,6 @@ export const visualizations: VisualizationRegistry = {
   'sf-urban': sfUrbanConfig,
   'palo-alto': paloAltoConfig,
   'bay-area': bayAreaConfig,
+  'clark-county': clarkCountyConfig,
+  'la-county': laCountyConfig,
 };

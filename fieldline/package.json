@@ -18,7 +18,12 @@
     "pipeline:solano-fetch": "node --import tsx src/pipelines/solano-fetch.ts",
     "pipeline:solano": "node --import tsx src/pipelines/solano.ts",
     "pipeline:livermore-fetch": "node --import tsx src/pipelines/livermore-fetch.ts",
-    "pipeline:livermore": "node --import tsx src/pipelines/livermore.ts"
+    "pipeline:livermore": "node --import tsx src/pipelines/livermore.ts",
+    "pipeline:la-county-fetch": "node --import tsx src/pipelines/la-county-fetch.ts",
+    "pipeline:la-county": "node --import tsx src/pipelines/la-county.ts",
+    "pipeline:clark-county-fetch": "node --import tsx src/pipelines/clark-county-fetch.ts",
+    "pipeline:clark-county": "node --import tsx src/pipelines/clark-county.ts",
+    "pipeline:clark-county-tiles": "node --import tsx src/pipelines/clark-county-tiles.ts"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
