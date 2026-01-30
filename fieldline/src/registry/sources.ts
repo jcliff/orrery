@@ -248,6 +248,79 @@ export const LIVERMORE: SourceDefinition = {
   attributionUrl: 'https://www.cityoflivermore.net',
 };
 
+export const SANTA_CLARA: SourceDefinition = {
+  id: 'santa-clara',
+  name: 'Santa Clara Parcels',
+  country: 'US',
+  region: 'California',
+  city: 'Santa Clara',
+  api: {
+    type: 'arcgis',
+    url: 'https://map.santaclaraca.gov/maps/rest/services/OPENDATA/RegionalBaseOpenData/MapServer/7/query',
+    outFields: [
+      'APN',
+      'YEARBUILT',
+      'GPLANCRT',
+      'ZONGDSGN',
+      'ACREAGE',
+      'PARTYPE',
+    ],
+  },
+  schema: {
+    sourceId: 'santa-clara',
+    fieldMapping: {
+      id: 'APN',
+      yearBuilt: 'YEARBUILT',
+      landUse: 'GPLANCRT',
+      area: 'ACREAGE',
+    },
+    areaUnit: 'acres',
+  },
+  expectedCount: 35000,
+  updateFrequency: 'monthly',
+  attribution: 'City of Santa Clara',
+  attributionUrl: 'https://www.santaclaraca.gov',
+};
+
+export const HAYWARD: SourceDefinition = {
+  id: 'hayward',
+  name: 'Hayward Parcels',
+  country: 'US',
+  region: 'California',
+  city: 'Hayward',
+  api: {
+    type: 'arcgis',
+    url: 'https://maps.hayward-ca.gov/arcgis/rest/services/External/Assessor_Parcels/MapServer/0/query',
+    outFields: [
+      'APN_GIS',
+      'YEARBUILT',
+      'USECODE',
+      'USEDESCRIPTION',
+      'P_HouseNum',
+      'P_Street_Name',
+      'P_AREA',
+      'BUILDINGAREA',
+      'NUMBERUNITS',
+    ],
+  },
+  schema: {
+    sourceId: 'hayward',
+    fieldMapping: {
+      id: 'APN_GIS',
+      yearBuilt: 'YEARBUILT',
+      landUse: 'USEDESCRIPTION',
+      address: ['P_HouseNum', 'P_Street_Name'],
+      area: 'BUILDINGAREA',
+      units: 'NUMBERUNITS',
+    },
+    areaUnit: 'sqft',
+  },
+  expectedCount: 68000,
+  updateFrequency: 'monthly',
+  attribution: 'City of Hayward',
+  attributionUrl: 'https://www.hayward-ca.gov',
+};
+
 // ============================================================================
 // Other US Sources
 // ============================================================================
@@ -654,6 +727,8 @@ export const SOURCES: Record<string, SourceDefinition> = {
   'palo-alto': PALO_ALTO,
   solano: SOLANO,
   livermore: LIVERMORE,
+  'santa-clara': SANTA_CLARA,
+  hayward: HAYWARD,
   // Other US
   'la-county': LA_COUNTY,
   'nyc-pluto': NYC_PLUTO,

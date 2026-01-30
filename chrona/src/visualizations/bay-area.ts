@@ -87,6 +87,34 @@ export const bayAreaConfig: VisualizationConfig = {
       sourceLayer: 'parcels',
       minzoom: ZOOM_THRESHOLD,
     },
+    // Santa Clara sources
+    {
+      id: 'santa-clara-parcels-aggregated',
+      type: 'geojson',
+      url: '/data/santa-clara/parcels.geojson',
+      maxzoom: ZOOM_THRESHOLD,
+    },
+    {
+      id: 'santa-clara-parcels-tiles',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/santa-clara/parcels.pmtiles',
+      sourceLayer: 'parcels',
+      minzoom: ZOOM_THRESHOLD,
+    },
+    // Hayward sources
+    {
+      id: 'hayward-parcels-aggregated',
+      type: 'geojson',
+      url: '/data/hayward/parcels.geojson',
+      maxzoom: ZOOM_THRESHOLD,
+    },
+    {
+      id: 'hayward-parcels-tiles',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/hayward/parcels.pmtiles',
+      sourceLayer: 'parcels',
+      minzoom: ZOOM_THRESHOLD,
+    },
   ],
 
   layers: [
@@ -320,6 +348,98 @@ export const bayAreaConfig: VisualizationConfig = {
         useGpuFilter: true,
       },
     },
+    // Santa Clara layers (zoomed out)
+    {
+      id: 'santa-clara-parcels-circles',
+      sourceId: 'santa-clara-parcels-aggregated',
+      type: 'circle',
+      maxzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10, ['max', 2, ['min', 6, ['/', ['sqrt', ['get', 'area']], 500]]],
+          14, ['max', 4, ['min', 10, ['/', ['sqrt', ['get', 'area']], 200]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': ['get', 'opacity'],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    // Santa Clara layers (zoomed in - PMTiles)
+    {
+      id: 'santa-clara-parcels-detailed',
+      sourceId: 'santa-clara-parcels-tiles',
+      sourceLayer: 'parcels',
+      type: 'circle',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+          18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+        useGpuFilter: true,
+      },
+    },
+    // Hayward layers (zoomed out)
+    {
+      id: 'hayward-parcels-circles',
+      sourceId: 'hayward-parcels-aggregated',
+      type: 'circle',
+      maxzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10, ['max', 2, ['min', 6, ['/', ['sqrt', ['get', 'area']], 500]]],
+          14, ['max', 4, ['min', 10, ['/', ['sqrt', ['get', 'area']], 200]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': ['get', 'opacity'],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    // Hayward layers (zoomed in - PMTiles)
+    {
+      id: 'hayward-parcels-detailed',
+      sourceId: 'hayward-parcels-tiles',
+      sourceLayer: 'parcels',
+      type: 'circle',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+          18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+        useGpuFilter: true,
+      },
+    },
   ],
 
   legend: {
@@ -364,6 +484,8 @@ export const bayAreaConfig: VisualizationConfig = {
       'campbell-parcels-circles', 'campbell-parcels-detailed',
       'solano-parcels-circles', 'solano-parcels-detailed',
       'livermore-parcels-circles', 'livermore-parcels-detailed',
+      'santa-clara-parcels-circles', 'santa-clara-parcels-detailed',
+      'hayward-parcels-circles', 'hayward-parcels-detailed',
     ],
     render: (props) => {
       // Aggregated cluster

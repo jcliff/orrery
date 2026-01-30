@@ -47,7 +47,13 @@
     "pipeline:copenhagen-tiles": "node --import tsx src/pipelines/copenhagen-tiles.ts",
     "pipeline:vienna-fetch": "node --import tsx src/pipelines/vienna-fetch.ts",
     "pipeline:vienna": "node --import tsx src/pipelines/vienna.ts",
-    "pipeline:vienna-tiles": "node --import tsx src/pipelines/vienna-tiles.ts"
+    "pipeline:vienna-tiles": "node --import tsx src/pipelines/vienna-tiles.ts",
+    "pipeline:santa-clara-fetch": "node --import tsx src/pipelines/santa-clara-fetch.ts",
+    "pipeline:santa-clara": "node --import tsx src/pipelines/santa-clara.ts",
+    "pipeline:santa-clara-tiles": "node --import tsx src/pipelines/santa-clara-tiles.ts",
+    "pipeline:hayward-fetch": "node --import tsx src/pipelines/hayward-fetch.ts",
+    "pipeline:hayward": "node --import tsx src/pipelines/hayward.ts",
+    "pipeline:hayward-tiles": "node --import tsx src/pipelines/hayward-tiles.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
