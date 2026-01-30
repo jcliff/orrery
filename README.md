@@ -6,9 +6,10 @@ Timelapse visualization platform for geospatial data. Watch cities grow, storms 
 
 - **Railroads** — US railroad network expansion (1850–1876)
 - **Hurricanes** — Atlantic hurricane tracks (1851–present)
-- **SF Urban** — San Francisco building development (1848–present, 212k buildings)
-- **Palo Alto** — Palo Alto parcel development (1880–present)
-- **Bay Area** — Regional composite (SF, Palo Alto, Campbell, Solano)
+- **Bay Area** — Regional building development (1848–present, 770k+ parcels)
+  - SF Urban, Palo Alto, Campbell, Solano, Livermore
+  - Santa Clara, Hayward, Sonoma, Santa Rosa
+  - Pittsburg, Walnut Creek, Brentwood, Berkeley
 
 ## Quick Start
 
@@ -48,9 +49,13 @@ pnpm lint                             # Lint all packages
 pnpm --filter fieldline pipeline:railroads       # Process railroad network
 pnpm --filter fieldline pipeline:hurricanes      # Process hurricane data
 pnpm --filter fieldline pipeline:sf-urban        # Process SF buildings
-pnpm --filter fieldline pipeline:palo-alto       # Process Palo Alto parcels
-pnpm --filter fieldline pipeline:campbell        # Process Campbell parcels
-pnpm --filter fieldline pipeline:solano          # Process Solano parcels
+
+# Bay Area parcels (each city has fetch → process → tiles pipeline)
+pnpm --filter fieldline pipeline:berkeley-fetch  # Example: fetch Berkeley data
+pnpm --filter fieldline pipeline:berkeley        # Process into GeoJSON
+pnpm --filter fieldline pipeline:berkeley-tiles  # Generate PMTiles
+# Available cities: palo-alto, campbell, solano, livermore, santa-clara,
+# hayward, sonoma, santa-rosa, pittsburg, walnut-creek, brentwood, berkeley
 ```
 
 ## Tech Stack

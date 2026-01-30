@@ -1033,3 +1033,38 @@ export function listSourcesByCountry(country: string): SourceDefinition[] {
 export function listSourcesByRegion(region: string): SourceDefinition[] {
   return Object.values(SOURCES).filter((s) => s.region === region);
 }
+
+// ============================================================================
+// Research Notes: Dead Ends and Potential Future Sources
+// ============================================================================
+//
+// BAY AREA - NO PUBLIC YEAR BUILT DATA:
+// - San Mateo County: No public year built in parcel layers
+//   - Redwood City, Daly City, San Mateo city, South San Francisco
+// - Alameda County: https://services5.arcgis.com/ROBnTHSNjoZ2Wm1P/arcgis/rest/services/Parcels/FeatureServer/0
+//   - Has parcel boundaries but NO year built field
+//   - Assessor data separate from GIS
+// - Marin County: https://gis.marinpublic.com/arcgis/rest/services/MarinMap2/Open_Data_Download/MapServer/35
+//   - Parcels have UseCd, Jurisdiction, Acres but NO year built
+// - Napa County: https://gis.napacounty.gov/arcgis/rest/services/Hosted/Parcels_Public/FeatureServer/0
+//   - Has asmt, zip, landuse1, acres but NO year built
+// - Concord, Antioch, Pleasant Hill: Use Contra Costa County data, no city-specific year built
+// - Sunnyvale: Has GIS but no public parcel layer with year built
+// - Mountain View, Cupertino, Los Gatos, Saratoga: No accessible endpoints
+// - Oakland, Fremont: No public ArcGIS endpoints found
+// - San Jose: Data portal exists but year built field not confirmed in REST API
+//
+// MAPSERVER QUIRKS:
+// - Berkeley: Uses EPSG:32610 (UTM Zone 10N), f=geojson fails at scale
+//   - Solution: Use f=json and convert with proj4 reprojection
+// - Some MapServers don't support resultOffset pagination properly
+//   - Solution: Use sequential fetching with concurrency=1
+//
+// CONTRA COSTA COUNTY - GOOD SOURCE AREA:
+// - Pittsburg, Walnut Creek, Brentwood all have YR_HS_BLT field
+// - County shapefile download available at https://gis.cccounty.us/Downloads/Assessor/
+//
+// POTENTIAL FUTURE SOURCES:
+// - Contra Costa County shapefile (monthly updates, would need offline processing)
+// - San Jose city data (needs investigation of specific endpoint)
+// - Gilroy (part of Santa Clara County, may have year built)

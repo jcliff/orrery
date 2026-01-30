@@ -13,9 +13,13 @@ pnpm build                # Build all packages
 pnpm --filter fieldline pipeline:railroads
 pnpm --filter fieldline pipeline:hurricanes
 pnpm --filter fieldline pipeline:sf-urban
+
+# Bay Area parcel pipelines (each city has 3 scripts: fetch, process, tiles)
+pnpm --filter fieldline pipeline:palo-alto-fetch
 pnpm --filter fieldline pipeline:palo-alto
-pnpm --filter fieldline pipeline:campbell
-pnpm --filter fieldline pipeline:solano
+pnpm --filter fieldline pipeline:palo-alto-tiles
+# Similar pattern for: campbell, solano, livermore, santa-clara, hayward,
+# sonoma, santa-rosa, pittsburg, walnut-creek, brentwood, berkeley
 ```
 
 ## Structure
@@ -48,3 +52,26 @@ Data flow: Raw source → Fieldline → GeoJSON/PMTiles in `chrona/public/data/`
 **Saffir-Simpson (Hurricanes):**
 - TD: `#6ec4e8`, TS: `#4daf4a`, Cat 1: `#ffe066`, Cat 2: `#ffb347`
 - Cat 3: `#ff6b6b`, Cat 4: `#d63031`, Cat 5: `#6c3483`
+
+## Bay Area Data Sources
+
+**Working sources with year built data:**
+- SF Urban (Socrata), Palo Alto, Campbell, Solano County, Livermore
+- Santa Clara, Hayward, Sonoma County, Santa Rosa
+- Pittsburg, Walnut Creek, Brentwood (Contra Costa County)
+- Berkeley (MapServer - requires JSON format + UTM reprojection)
+
+**Dead ends (no public year built data):**
+- San Mateo County / cities (Redwood City, Daly City, etc.)
+- Alameda County parcel layer (has boundaries only, no year built)
+- Oakland, Fremont (no accessible endpoints)
+- Marin County (parcels lack year built field)
+- Napa County (parcels lack year built field)
+- Concord, Antioch, Pleasant Hill (no public year built data)
+- Sunnyvale, Mountain View, Cupertino (no parcel services found)
+- San Jose (endpoint exists but year built field not confirmed)
+
+**MapServer quirks:**
+- Some MapServers don't support `f=geojson` with geometry at scale
+- Use `f=json` and convert ESRI JSON to GeoJSON manually
+- Check `spatialReference.wkid` for coordinate system (may need proj4 reprojection)
