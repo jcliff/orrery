@@ -370,6 +370,51 @@ export const SONOMA: SourceDefinition = {
   attributionUrl: 'https://sonomacounty.ca.gov',
 };
 
+export const SANTA_ROSA: SourceDefinition = {
+  id: 'santa-rosa',
+  name: 'Santa Rosa Parcels',
+  country: 'US',
+  region: 'California',
+  city: 'Santa Rosa',
+  api: {
+    type: 'arcgis',
+    url: 'https://services2.arcgis.com/BhTdzxiJkq4oXsPh/arcgis/rest/services/SantaRosa_Parcels/FeatureServer/0/query',
+    outFields: [
+      'APN',
+      'YR_BUILT',
+      'CNTY_LUCOD',
+      'CNTY_LUC_1',
+      'SITUS_ADDR',
+      'SITUS_CITY',
+      'BLDG_SQFT',
+      'RES_UNITS',
+      'BEDRM',
+      'BATHRM',
+      'LOT_ACRES',
+      'ZONING_COD',
+      'GP_LANDUSE',
+    ],
+    where: 'YR_BUILT > 1800',
+  },
+  schema: {
+    sourceId: 'santa-rosa',
+    fieldMapping: {
+      id: 'APN',
+      yearBuilt: 'YR_BUILT',
+      landUse: 'CNTY_LUC_1',
+      address: 'SITUS_ADDR',
+      city: 'SITUS_CITY',
+      area: 'BLDG_SQFT',
+      units: 'RES_UNITS',
+    },
+    areaUnit: 'sqft',
+  },
+  expectedCount: 80000,
+  updateFrequency: 'monthly',
+  attribution: 'City of Santa Rosa',
+  attributionUrl: 'https://www.srcity.org',
+};
+
 // ============================================================================
 // Other US Sources
 // ============================================================================
@@ -779,6 +824,7 @@ export const SOURCES: Record<string, SourceDefinition> = {
   'santa-clara': SANTA_CLARA,
   hayward: HAYWARD,
   sonoma: SONOMA,
+  'santa-rosa': SANTA_ROSA,
   // Other US
   'la-county': LA_COUNTY,
   'nyc-pluto': NYC_PLUTO,
