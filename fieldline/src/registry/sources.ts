@@ -435,6 +435,82 @@ export const TORONTO: SourceDefinition = {
   notes: 'Building permits from 2001 onwards. Year represents permit completion date.',
 };
 
+export const AMSTERDAM_BAG: SourceDefinition = {
+  id: 'amsterdam',
+  name: 'Amsterdam Buildings (BAG)',
+  country: 'NL',
+  region: 'Noord-Holland',
+  city: 'Amsterdam',
+  api: {
+    type: 'generic',
+    buildUrl: (offset, batchSize) => {
+      // PDOK BAG OGC API Features - Amsterdam bounding box
+      return `https://api.pdok.nl/kadaster/bag/ogc/v2/collections/pand/items?bbox=4.7,52.28,5.1,52.45&limit=${batchSize}&offset=${offset}&f=json`;
+    },
+    extractFeatures: (response: unknown) => {
+      const data = response as { features?: unknown[] };
+      return data.features || [];
+    },
+    hasMore: (response: unknown, features: unknown[], offset: number) => {
+      const data = response as { numberMatched?: number };
+      return features.length > 0 && offset + features.length < (data.numberMatched || 0);
+    },
+  },
+  schema: {
+    sourceId: 'amsterdam',
+    fieldMapping: {
+      id: 'identificatie',
+      yearBuilt: 'bouwjaar',
+      landUse: 'gebruiksdoel',
+      units: 'aantal_verblijfsobjecten',
+    },
+  },
+  expectedCount: 190000,
+  updateFrequency: 'daily',
+  attribution: 'PDOK / Kadaster',
+  attributionUrl: 'https://www.pdok.nl',
+  license: 'CC0 Public Domain',
+  notes: 'Dutch national building registry (BAG). bouwjaar is construction year.',
+};
+
+export const PARIS_APUR: SourceDefinition = {
+  id: 'paris',
+  name: 'Paris Buildings (APUR)',
+  country: 'FR',
+  region: 'Île-de-France',
+  city: 'Paris',
+  api: {
+    type: 'arcgis',
+    url: 'https://carto2.apur.org/apur/rest/services/OPENDATA/EMPRISE_BATIE_PARIS/MapServer/0/query',
+    outFields: [
+      'OBJECTID',
+      'an_const',
+      'c_perconst',
+      'an_rehab',
+      'h_moy',
+      'c_morpho',
+      'c_tissu',
+      'Shape_Area',
+    ],
+    outSR: 4326,
+  },
+  schema: {
+    sourceId: 'paris',
+    fieldMapping: {
+      id: 'OBJECTID',
+      yearBuilt: 'an_const',
+      area: 'Shape_Area',
+    },
+    areaUnit: 'sqm',
+  },
+  expectedCount: 120000,
+  updateFrequency: 'monthly',
+  attribution: 'APUR (Atelier Parisien d\'Urbanisme)',
+  attributionUrl: 'https://opendata.apur.org',
+  license: 'ODbL',
+  notes: 'AN_CONST is year, C_PERCONST is construction period code (1-12).',
+};
+
 export const LONDON_PLANNING: SourceDefinition = {
   id: 'london-planning',
   name: 'London Planning Applications',
@@ -493,6 +569,8 @@ export const SOURCES: Record<string, SourceDefinition> = {
   // International
   toronto: TORONTO,
   'london-planning': LONDON_PLANNING,
+  amsterdam: AMSTERDAM_BAG,
+  paris: PARIS_APUR,
 };
 
 export function getSource(id: string): SourceDefinition {
