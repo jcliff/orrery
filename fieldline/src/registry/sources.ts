@@ -321,6 +321,55 @@ export const HAYWARD: SourceDefinition = {
   attributionUrl: 'https://www.hayward-ca.gov',
 };
 
+export const SONOMA: SourceDefinition = {
+  id: 'sonoma',
+  name: 'Sonoma County Parcels',
+  country: 'US',
+  region: 'California',
+  city: 'Sonoma County',
+  api: {
+    type: 'arcgis',
+    url: 'https://socogis.sonomacounty.ca.gov/map/rest/services/AGCOMMPublic/Sonoma_County_Parcels/FeatureServer/0/query',
+    outFields: [
+      'APN',
+      'BuildingPrimaryYearBuilt',
+      'BuildingPrimaryEffectiveYear',
+      'UseCode',
+      'UseCodeDescription',
+      'UseCodeType',
+      'SitusFormatted1',
+      'SitusCity',
+      'LandSizeAcres',
+      'LandSizeSqft',
+      'BuildingPrimarySize',
+      'BuildingPrimaryStories',
+      'BuildingPrimaryUnitCount',
+      'BuildingPrimaryBedRooms',
+      'BuildingPrimaryBaths',
+    ],
+    where: 'BuildingPrimaryYearBuilt > 1800',
+  },
+  schema: {
+    sourceId: 'sonoma',
+    fieldMapping: {
+      id: 'APN',
+      yearBuilt: ['BuildingPrimaryYearBuilt', 'BuildingPrimaryEffectiveYear'],
+      effectiveYear: 'BuildingPrimaryEffectiveYear',
+      landUse: 'UseCodeDescription',
+      address: 'SitusFormatted1',
+      city: 'SitusCity',
+      area: 'BuildingPrimarySize',
+      stories: 'BuildingPrimaryStories',
+      units: 'BuildingPrimaryUnitCount',
+    },
+    areaUnit: 'sqft',
+  },
+  expectedCount: 200000,
+  updateFrequency: 'monthly',
+  attribution: 'Sonoma County',
+  attributionUrl: 'https://sonomacounty.ca.gov',
+};
+
 // ============================================================================
 // Other US Sources
 // ============================================================================
@@ -729,6 +778,7 @@ export const SOURCES: Record<string, SourceDefinition> = {
   livermore: LIVERMORE,
   'santa-clara': SANTA_CLARA,
   hayward: HAYWARD,
+  sonoma: SONOMA,
   // Other US
   'la-county': LA_COUNTY,
   'nyc-pluto': NYC_PLUTO,

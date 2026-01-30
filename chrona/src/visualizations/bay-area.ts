@@ -115,6 +115,20 @@ export const bayAreaConfig: VisualizationConfig = {
       sourceLayer: 'parcels',
       minzoom: ZOOM_THRESHOLD,
     },
+    // Sonoma County sources
+    {
+      id: 'sonoma-parcels-aggregated',
+      type: 'geojson',
+      url: '/data/sonoma/parcels.geojson',
+      maxzoom: ZOOM_THRESHOLD,
+    },
+    {
+      id: 'sonoma-parcels-tiles',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/sonoma/parcels.pmtiles',
+      sourceLayer: 'parcels',
+      minzoom: ZOOM_THRESHOLD,
+    },
   ],
 
   layers: [
@@ -440,6 +454,52 @@ export const bayAreaConfig: VisualizationConfig = {
         useGpuFilter: true,
       },
     },
+    // Sonoma County layers (zoomed out)
+    {
+      id: 'sonoma-parcels-circles',
+      sourceId: 'sonoma-parcels-aggregated',
+      type: 'circle',
+      maxzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10, ['max', 2, ['min', 6, ['/', ['sqrt', ['get', 'area']], 500]]],
+          14, ['max', 4, ['min', 10, ['/', ['sqrt', ['get', 'area']], 200]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': ['get', 'opacity'],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    // Sonoma County layers (zoomed in - PMTiles)
+    {
+      id: 'sonoma-parcels-detailed',
+      sourceId: 'sonoma-parcels-tiles',
+      sourceLayer: 'parcels',
+      type: 'circle',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+          18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+        useGpuFilter: true,
+      },
+    },
   ],
 
   legend: {
@@ -450,7 +510,8 @@ export const bayAreaConfig: VisualizationConfig = {
       { label: 'Commercial/Retail', color: '#e74c3c', shape: 'circle' },
       { label: 'Office', color: '#e67e22', shape: 'circle' },
       { label: 'Industrial', color: '#7f8c8d', shape: 'circle' },
-      { label: 'Public/Gov', color: '#27ae60', shape: 'circle' },
+      { label: 'Agricultural', color: '#27ae60', shape: 'circle' },
+      { label: 'Public/Gov', color: '#2ecc71', shape: 'circle' },
       { label: 'Mixed Use', color: '#1abc9c', shape: 'circle' },
     ],
   },
@@ -486,6 +547,7 @@ export const bayAreaConfig: VisualizationConfig = {
       'livermore-parcels-circles', 'livermore-parcels-detailed',
       'santa-clara-parcels-circles', 'santa-clara-parcels-detailed',
       'hayward-parcels-circles', 'hayward-parcels-detailed',
+      'sonoma-parcels-circles', 'sonoma-parcels-detailed',
     ],
     render: (props) => {
       // Aggregated cluster

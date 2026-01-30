@@ -53,7 +53,10 @@
     "pipeline:santa-clara-tiles": "node --import tsx src/pipelines/santa-clara-tiles.ts",
     "pipeline:hayward-fetch": "node --import tsx src/pipelines/hayward-fetch.ts",
     "pipeline:hayward": "node --import tsx src/pipelines/hayward.ts",
-    "pipeline:hayward-tiles": "node --import tsx src/pipelines/hayward-tiles.ts"
+    "pipeline:hayward-tiles": "node --import tsx src/pipelines/hayward-tiles.ts",
+    "pipeline:sonoma-fetch": "node --import tsx src/pipelines/sonoma-fetch.ts",
+    "pipeline:sonoma": "node --import tsx src/pipelines/sonoma.ts",
+    "pipeline:sonoma-tiles": "node --import tsx src/pipelines/sonoma-tiles.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
