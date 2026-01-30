@@ -11,9 +11,12 @@ pnpm build                # Build all packages
 pnpm lint                 # Lint all packages
 
 # Pipelines (run from root)
+pnpm --filter fieldline pipeline:railroads
 pnpm --filter fieldline pipeline:hurricanes
 pnpm --filter fieldline pipeline:sf-urban
-pnpm --filter fieldline pipeline:sf-urban-tiles  # Requires tippecanoe
+pnpm --filter fieldline pipeline:palo-alto
+pnpm --filter fieldline pipeline:campbell
+pnpm --filter fieldline pipeline:solano
 ```
 
 ## Structure

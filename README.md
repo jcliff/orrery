@@ -4,9 +4,11 @@ Timelapse visualization platform for geospatial data. Watch cities grow, storms 
 
 ## Visualizations
 
-- **SF Urban** — San Francisco building development (1848–present, 212k buildings)
+- **Railroads** — US railroad network expansion (1850–1876)
 - **Hurricanes** — Atlantic hurricane tracks (1851–present)
-- **Railroads** — US railroad network expansion (1826–present)
+- **SF Urban** — San Francisco building development (1848–present, 212k buildings)
+- **Palo Alto** — Palo Alto parcel development (1880–present)
+- **Bay Area** — Regional composite (SF, Palo Alto, Campbell, Solano)
 
 ## Quick Start
 
@@ -43,10 +45,12 @@ pnpm build                            # Build everything
 pnpm lint                             # Lint all packages
 
 # Data pipelines
-pnpm --filter fieldline pipeline:hurricanes      # Process hurricane data
 pnpm --filter fieldline pipeline:railroads       # Process railroad network
+pnpm --filter fieldline pipeline:hurricanes      # Process hurricane data
 pnpm --filter fieldline pipeline:sf-urban        # Process SF buildings
-pnpm --filter fieldline pipeline:sf-urban-tiles  # Generate PMTiles (requires tippecanoe)
+pnpm --filter fieldline pipeline:palo-alto       # Process Palo Alto parcels
+pnpm --filter fieldline pipeline:campbell        # Process Campbell parcels
+pnpm --filter fieldline pipeline:solano          # Process Solano parcels
 ```
 
 ## Tech Stack
