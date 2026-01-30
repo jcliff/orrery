@@ -415,6 +415,47 @@ export const SANTA_ROSA: SourceDefinition = {
   attributionUrl: 'https://www.srcity.org',
 };
 
+export const WALNUT_CREEK: SourceDefinition = {
+  id: 'walnut-creek',
+  name: 'Walnut Creek Parcels',
+  country: 'US',
+  region: 'California',
+  city: 'Walnut Creek',
+  api: {
+    type: 'arcgis',
+    url: 'https://gisenterprise.walnut-creek.org/server/rest/services/Web_Services/Parcels/MapServer/1/query',
+    outFields: [
+      'apn_pt_APN',
+      'apn_pt_YR_HS_BLT',
+      'apn_pt_YR_BUILT',
+      'apn_pt_USE_DESC',
+      'full_addre',
+      'apn_pt_TOT_AREA',
+      'apn_pt_BLDG_SQFT',
+      'apn_pt_BEDS',
+      'apn_pt_BATHS',
+      'apn_pt_ACREAGE',
+      'Zoning',
+    ],
+    where: "apn_pt_YR_HS_BLT IS NOT NULL AND apn_pt_YR_HS_BLT <> '' AND apn_pt_YR_HS_BLT <> '0'",
+  },
+  schema: {
+    sourceId: 'walnut-creek',
+    fieldMapping: {
+      id: 'apn_pt_APN',
+      yearBuilt: ['apn_pt_YR_HS_BLT', 'apn_pt_YR_BUILT'],
+      landUse: 'apn_pt_USE_DESC',
+      address: 'full_addre',
+      area: 'apn_pt_BLDG_SQFT',
+    },
+    areaUnit: 'sqft',
+  },
+  expectedCount: 30000,
+  updateFrequency: 'monthly',
+  attribution: 'City of Walnut Creek',
+  attributionUrl: 'https://www.walnut-creek.org',
+};
+
 export const PITTSBURG: SourceDefinition = {
   id: 'pittsburg',
   name: 'Pittsburg Parcels',
@@ -873,6 +914,7 @@ export const SOURCES: Record<string, SourceDefinition> = {
   sonoma: SONOMA,
   'santa-rosa': SANTA_ROSA,
   pittsburg: PITTSBURG,
+  'walnut-creek': WALNUT_CREEK,
   // Other US
   'la-county': LA_COUNTY,
   'nyc-pluto': NYC_PLUTO,

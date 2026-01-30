@@ -157,6 +157,20 @@ export const bayAreaConfig: VisualizationConfig = {
       sourceLayer: 'parcels',
       minzoom: ZOOM_THRESHOLD,
     },
+    // Walnut Creek sources
+    {
+      id: 'walnut-creek-parcels-aggregated',
+      type: 'geojson',
+      url: '/data/walnut-creek/parcels.geojson',
+      maxzoom: ZOOM_THRESHOLD,
+    },
+    {
+      id: 'walnut-creek-parcels-tiles',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/walnut-creek/parcels.pmtiles',
+      sourceLayer: 'parcels',
+      minzoom: ZOOM_THRESHOLD,
+    },
   ],
 
   layers: [
@@ -620,6 +634,52 @@ export const bayAreaConfig: VisualizationConfig = {
         useGpuFilter: true,
       },
     },
+    // Walnut Creek layers (zoomed out)
+    {
+      id: 'walnut-creek-parcels-circles',
+      sourceId: 'walnut-creek-parcels-aggregated',
+      type: 'circle',
+      maxzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10, ['max', 2, ['min', 6, ['/', ['sqrt', ['get', 'area']], 500]]],
+          14, ['max', 4, ['min', 10, ['/', ['sqrt', ['get', 'area']], 200]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': ['get', 'opacity'],
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+      },
+    },
+    // Walnut Creek layers (zoomed in - PMTiles)
+    {
+      id: 'walnut-creek-parcels-detailed',
+      sourceId: 'walnut-creek-parcels-tiles',
+      sourceLayer: 'parcels',
+      type: 'circle',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+          18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+        useGpuFilter: true,
+      },
+    },
   ],
 
   legend: {
@@ -670,6 +730,7 @@ export const bayAreaConfig: VisualizationConfig = {
       'sonoma-parcels-circles', 'sonoma-parcels-detailed',
       'santa-rosa-parcels-circles', 'santa-rosa-parcels-detailed',
       'pittsburg-parcels-circles', 'pittsburg-parcels-detailed',
+      'walnut-creek-parcels-circles', 'walnut-creek-parcels-detailed',
     ],
     render: (props) => {
       // Aggregated cluster
