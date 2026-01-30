@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Input: processed GeoJSON from sf-urban pipeline
-const INPUT = join(__dirname, '../../data/processed/sf-urban/buildings-detailed.geojson');
-// Output: PMTiles file for sf-urban project
-const OUTPUT_DIR = join(__dirname, '../../../projects/sf-urban/public');
+const INPUT = join(__dirname, '../../../chrona/public/data/sf-urban/buildings-detailed.geojson');
+// Output: PMTiles file for chrona app
+const OUTPUT_DIR = join(__dirname, '../../../chrona/public/data/sf-urban');
 const MBTILES_PATH = join(OUTPUT_DIR, 'buildings.mbtiles');
 const PMTILES_PATH = join(OUTPUT_DIR, 'buildings.pmtiles');
 

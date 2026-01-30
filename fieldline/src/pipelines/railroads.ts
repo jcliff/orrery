@@ -32,7 +32,7 @@ function transformGeometry(geometry: { type: string; coordinates: unknown }): { 
   }
   return geometry;
 }
-const OUTPUT_DIR = new URL('../../data/processed/railroads', import.meta.url).pathname;
+const OUTPUT_DIR = new URL('../../../chrona/public/data/railroads', import.meta.url).pathname;
 
 interface RailroadProperties {
   FID_RR1826: number;

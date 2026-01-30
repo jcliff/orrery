@@ -2,7 +2,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { fetchHurdat2, parseHurdat2 } from '../sources/hurdat2.js';
 import { Storm, windToCategory } from '../schemas/storm.js';
 
-const OUTPUT_DIR = new URL('../../data/processed', import.meta.url).pathname;
+const OUTPUT_DIR = new URL('../../../chrona/public/data/hurricanes', import.meta.url).pathname;
 
 interface GeoJSONFeature {
   type: 'Feature';

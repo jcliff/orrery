@@ -5,8 +5,15 @@
   "type": "module",
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "pnpm --filter hurricanes dev",
-    "pipeline": "pnpm --filter fieldline pipeline"
+    "dev": "pnpm --filter chrona dev",
+    "pipeline": "pnpm --filter fieldline pipeline",
+    "pipeline:hurricanes": "pnpm --filter fieldline pipeline",
+    "pipeline:railroads": "pnpm --filter fieldline pipeline:railroads",
+    "pipeline:sf-urban": "pnpm --filter fieldline pipeline:sf-urban",
+    "pipeline:sf-urban-tiles": "pnpm --filter fieldline pipeline:sf-urban-tiles",
+    "pipeline:palo-alto-fetch": "pnpm --filter fieldline pipeline:palo-alto-fetch",
+    "pipeline:palo-alto": "pnpm --filter fieldline pipeline:palo-alto",
+    "pipeline:palo-alto-tiles": "pnpm --filter fieldline pipeline:palo-alto-tiles"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

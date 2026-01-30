@@ -5,6 +5,7 @@ dist/
 
 # Data files (code only in git)
 fieldline/data/
+chrona/public/data/
 projects/*/public/*.geojson
 projects/*/public/*.json
 projects/*/public/*.pmtiles

@@ -12,13 +12,24 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "vite",
+    "build": "tsc -p tsconfig.lib.json && vite build",
+    "build:lib": "tsc -p tsconfig.lib.json",
+    "preview": "vite preview"
   },
   "keywords": ["timeline", "animation", "visualization", "geojson", "temporal"],
   "license": "ISC",
-  "devDependencies": {
+  "dependencies": {
     "maplibre-gl": "^4.1.2",
-    "typescript": "^5.3.3"
+    "pmtiles": "^3.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.0"
   }
 }

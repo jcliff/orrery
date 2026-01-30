@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 
 const INPUT_PATH = new URL('../../data/raw/palo-alto/parcels.geojson', import.meta.url).pathname;
-const OUTPUT_DIR = new URL('../../data/processed/palo-alto', import.meta.url).pathname;
+const OUTPUT_DIR = new URL('../../../chrona/public/data/palo-alto', import.meta.url).pathname;
 
 // Grid cell size for aggregation (~50m at Palo Alto latitude)
 const GRID_SIZE = 0.0005;

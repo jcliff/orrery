@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 
 const INPUT_DIR = new URL('../../data/raw/sf-urban', import.meta.url).pathname;
-const OUTPUT_DIR = new URL('../../data/processed/sf-urban', import.meta.url).pathname;
+const OUTPUT_DIR = new URL('../../../chrona/public/data/sf-urban', import.meta.url).pathname;
 
 // Grid cell size in degrees (~50m at SF latitude)
 const GRID_SIZE = 0.0005;

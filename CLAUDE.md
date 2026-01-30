@@ -4,13 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Orrery is a timelapse visualization platform. It consists of two reusable libraries and multiple proving-ground applications:
+Orrery is a timelapse visualization platform with two packages:
 
 - **Fieldline** (`fieldline/`): Data acquisition and normalization layer
-- **Chrona** (`chrona/`): Rendering and animation engine using MapLibre GL JS
-- **Hurricanes** (`projects/hurricanes/`): Atlantic hurricane tracks (1851–present)
-- **Railroads** (`projects/railroads/`): US railroad network expansion
-- **SF Urban** (`projects/sf-urban/`): San Francisco building development (1848–present)
+- **Chrona** (`chrona/`): Unified visualization app + rendering engine library using MapLibre GL JS
+
+The Chrona app hosts four visualizations accessible via dropdown navigation:
+- Atlantic Hurricane Tracks (1851–present)
+- US Railroad Network Expansion
+- San Francisco Building Development (1848–2022)
+- Palo Alto Urban Development (1880–present)
 
 ## Development Commands
 
@@ -18,34 +21,72 @@ Orrery is a timelapse visualization platform. It consists of two reusable librar
 # Install all workspace dependencies
 pnpm install
 
-# Run from root - commands propagate to workspaces
+# Run the unified Chrona app
+pnpm dev
+
+# Build all packages
 pnpm build
-pnpm test
-pnpm lint
 
-# Run the apps
-pnpm --filter hurricanes dev
-pnpm --filter sf-urban dev
+# Build only the Chrona library (for external consumption)
+pnpm --filter chrona build:lib
 
-# Build a specific package
-pnpm --filter fieldline build
-pnpm --filter chrona build
+# Run data pipelines
+pnpm pipeline:hurricanes
+pnpm pipeline:railroads
+pnpm pipeline:sf-urban
+pnpm pipeline:sf-urban-tiles  # Requires tippecanoe
+pnpm pipeline:palo-alto
+pnpm pipeline:palo-alto-tiles # Requires tippecanoe
 ```
 
 ## Architecture
 
+### Unified App Structure
+
+```
+chrona/
+├── src/
+│   ├── index.ts              # Library exports (Timeline, filterByTime, etc.)
+│   ├── main.tsx              # App entry point
+│   ├── App.tsx               # Root with header + hash routing
+│   ├── core/                 # Library core (unchanged)
+│   │   ├── timeline.ts
+│   │   ├── temporal-filter.ts
+│   │   └── temporal-expression.ts
+│   ├── visualizations/       # Per-visualization configs
+│   │   ├── types.ts          # VisualizationConfig interface
+│   │   ├── registry.ts       # Map of all visualizations
+│   │   ├── hurricanes.ts
+│   │   ├── railroads.ts
+│   │   ├── sf-urban.ts
+│   │   └── palo-alto.ts
+│   ├── components/           # Shared UI components
+│   │   ├── Header.tsx
+│   │   ├── VisualizationView.tsx
+│   │   ├── TimelineControls.tsx
+│   │   ├── Legend.tsx
+│   │   └── Title.tsx
+│   └── hooks/
+│       ├── useTimeline.ts
+│       └── useTemporalData.ts
+├── public/
+│   └── data/                 # All visualization data
+│       ├── hurricanes/
+│       ├── railroads/
+│       ├── sf-urban/
+│       └── palo-alto/
+└── index.html
+```
+
 ### Data Flow
 
 ```
-HURDAT2 (NOAA) → Fieldline (parse/normalize) → GeoJSON/JSON → Chrona (render) → MapLibre GL
+Raw Data (NOAA, Shapefiles, etc.) → Fieldline (parse/normalize) → GeoJSON/PMTiles → Chrona (render) → MapLibre GL
 ```
 
 ### Fieldline Data Pipeline
 
-1. Fetch HURDAT2 fixed-width text from NOAA
-2. Parse into `Storm` and `TrackPoint` objects
-3. Normalize timestamps (ISO 8601) and units (knots, mb)
-4. Export to `storms.json`, `tracks.geojson`, `points.geojson`
+Pipelines output directly to `chrona/public/data/{visualization}/`:
 
 Key types:
 - `Storm`: id, name, basin, year, track points, peak intensity, landfalls, category
@@ -54,32 +95,38 @@ Key types:
 
 ### Chrona Rendering Engine
 
-Core abstractions:
+Core library exports (in `chrona/src/index.ts`):
 - **Timeline**: Master clock controlling playback (play/pause/seek/speed)
-- **Interpolator**: Temporal interpolation between track points
-- **Renderer**: MapLibre GL-based visualization with multiple modes
+- **filterByTime**: JavaScript temporal filtering for GeoJSON
+- **createTemporalFilter**: GPU-evaluated MapLibre filter expressions
+- **createOpacityExpression**: Age-based opacity for fading effects
 
-Rendering modes: cumulative tracks, active storms only, single storm, heatmap, yearly summary
+### Two-Tier Rendering (SF Urban, Palo Alto)
 
-### SF Urban Architecture
-
-The SF Urban project visualizes 212k buildings with smooth 60fps animation using a two-tier approach:
+Large datasets use zoom-based LOD switching:
 
 **Zoomed out (< zoom 15):** Aggregated GeoJSON clusters
-- Buildings grouped by city block + grid cell (respects street boundaries)
-- ~34k cluster points with centroid positioning
+- Buildings grouped by city block + grid cell
 - JavaScript filtering via `filterByTime()`
 
 **Zoomed in (>= zoom 15):** PMTiles vector tiles
-- All 212k buildings as individual points
-- GPU-evaluated filters via `map.setFilter()` — no JS loop
+- Full dataset as individual points/polygons
+- GPU-evaluated filters via `map.setFilter()` — 60fps performance
 - Temporal expressions in `chrona/src/core/temporal-expression.ts`
 
-**Tile generation:**
-```bash
-pnpm --filter fieldline pipeline:sf-urban        # Generate GeoJSON
-pnpm --filter fieldline pipeline:sf-urban-tiles  # Generate PMTiles (requires tippecanoe)
-```
+### Hash-Based Routing
+
+The app uses simple hash-based routing (no React Router needed):
+- `/#/hurricanes` - Atlantic Hurricane Tracks
+- `/#/railroads` - US Railroad Development
+- `/#/sf-urban` - San Francisco Urban Development
+- `/#/palo-alto` - Palo Alto Urban Development
+
+### TimelineControls Variants
+
+The unified TimelineControls component supports two layouts:
+- **full**: Centered floating panel with year range sliders (hurricanes, railroads)
+- **compact**: Bottom bar layout (sf-urban, palo-alto)
 
 ### Saffir-Simpson Color Palette
 
@@ -98,16 +145,18 @@ pnpm --filter fieldline pipeline:sf-urban-tiles  # Generate PMTiles (requires ti
 - **Monorepo**: pnpm workspaces
 - **Language**: TypeScript
 - **Rendering**: MapLibre GL JS
-- **UI**: React + Tailwind CSS
+- **UI**: React
 - **Build**: Vite
-- **Data format**: GeoJSON for tracks, JSON for metadata
+- **Data format**: GeoJSON, PMTiles
 
 ## Key Design Decisions
 
-- Atlantic basin only for v1 (East Pacific excluded)
-- 6-hourly discrete time steps from HURDAT2 (no interpolation initially)
+- Unified app with dropdown navigation (single deployable)
+- Hash-based routing for simplicity
+- Config-driven visualizations for consistency
+- Two-tier rendering for large datasets
 - Dark basemap for visual contrast
-- GeoJSON as the interchange format for geospatial data
+- GeoJSON as the interchange format
 
 ## Reference
 
