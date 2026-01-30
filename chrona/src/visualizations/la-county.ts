@@ -1,5 +1,7 @@
 import type { VisualizationConfig } from './types';
 
+const ZOOM_THRESHOLD = 15;
+
 export const laCountyConfig: VisualizationConfig = {
   id: 'la-county',
   name: 'LA County Development',
@@ -18,6 +20,14 @@ export const laCountyConfig: VisualizationConfig = {
       id: 'parcels',
       type: 'geojson',
       url: '/data/la-county/parcels.geojson',
+      maxzoom: ZOOM_THRESHOLD,
+    },
+    {
+      id: 'parcels-tiles',
+      type: 'pmtiles',
+      url: 'pmtiles:///data/la-county/parcels.pmtiles',
+      sourceLayer: 'parcels',
+      minzoom: ZOOM_THRESHOLD,
     },
   ],
 
@@ -26,6 +36,7 @@ export const laCountyConfig: VisualizationConfig = {
       id: 'parcels-layer',
       sourceId: 'parcels',
       type: 'circle',
+      maxzoom: ZOOM_THRESHOLD,
       paint: {
         'circle-radius': [
           'interpolate',
@@ -33,7 +44,7 @@ export const laCountyConfig: VisualizationConfig = {
           ['zoom'],
           8, ['max', 1, ['min', 3, ['/', ['sqrt', ['get', 'area']], 800]]],
           10, ['max', 2, ['min', 5, ['/', ['sqrt', ['get', 'area']], 500]]],
-          13, ['max', 3, ['min', 8, ['/', ['sqrt', ['get', 'area']], 200]]],
+          14, ['max', 3, ['min', 6, ['/', ['sqrt', ['get', 'area']], 300]]],
         ],
         'circle-color': ['get', 'color'],
         'circle-opacity': ['get', 'opacity'],
@@ -41,6 +52,29 @@ export const laCountyConfig: VisualizationConfig = {
       temporal: {
         mode: 'cumulative',
         fadeYears: 20,
+      },
+    },
+    {
+      id: 'parcels-detailed-layer',
+      sourceId: 'parcels-tiles',
+      sourceLayer: 'parcels',
+      type: 'circle',
+      minzoom: ZOOM_THRESHOLD,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, ['max', 2, ['min', 4, ['/', ['sqrt', ['get', 'area']], 100]]],
+          18, ['max', 4, ['min', 8, ['/', ['sqrt', ['get', 'area']], 50]]],
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
+      },
+      temporal: {
+        mode: 'cumulative',
+        fadeYears: 20,
+        useGpuFilter: true,
       },
     },
   ],
@@ -81,16 +115,31 @@ export const laCountyConfig: VisualizationConfig = {
   },
 
   popup: {
-    layers: ['parcels-layer'],
+    layers: ['parcels-layer', 'parcels-detailed-layer'],
     render: (props) => {
-      const count = props.count as number || 1;
+      // Different rendering for aggregated vs detailed
+      if (props.count && (props.count as number) > 1) {
+        const count = props.count as number;
+        const year = props.year;
+        const estimated = props.estimated;
+        const use = props.use || 'Unknown';
+        return `
+          <strong>${count.toLocaleString()} parcel${count > 1 ? 's' : ''}</strong><br/>
+          Earliest: ${year}${estimated ? ' (includes estimates)' : ''}<br/>
+          Primary use: ${use}
+        `;
+      }
+      // Individual parcel from PMTiles
       const year = props.year;
       const estimated = props.estimated;
       const use = props.use || 'Unknown';
+      const address = props.address || '';
+      const apn = props.apn || '';
       return `
-        <strong>${count.toLocaleString()} parcel${count > 1 ? 's' : ''}</strong><br/>
-        Earliest: ${year}${estimated ? ' (includes estimates)' : ''}<br/>
-        Primary use: ${use}
+        ${address ? `<strong>${address}</strong><br/>` : ''}
+        Built: ${estimated ? '~' : ''}${year}${estimated ? ' (est.)' : ''}
+        ${use ? `<br/>Use: ${use}` : ''}
+        ${apn ? `<br/>APN: ${apn}` : ''}
       `;
     },
   },

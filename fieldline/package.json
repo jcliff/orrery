@@ -21,6 +21,7 @@
     "pipeline:livermore": "node --import tsx src/pipelines/livermore.ts",
     "pipeline:la-county-fetch": "node --import tsx src/pipelines/la-county-fetch.ts",
     "pipeline:la-county": "node --import tsx src/pipelines/la-county.ts",
+    "pipeline:la-county-tiles": "node --import tsx src/pipelines/la-county-tiles.ts",
     "pipeline:clark-county-fetch": "node --import tsx src/pipelines/clark-county-fetch.ts",
     "pipeline:clark-county": "node --import tsx src/pipelines/clark-county.ts",
     "pipeline:clark-county-tiles": "node --import tsx src/pipelines/clark-county-tiles.ts",

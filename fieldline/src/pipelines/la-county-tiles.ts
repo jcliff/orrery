@@ -5,11 +5,11 @@ import { generateTiles } from './lib/generate-tiles.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 generateTiles({
-  name: 'SF Urban',
-  inputPath: join(__dirname, '../../../chrona/public/data/sf-urban/buildings-detailed.geojson'),
-  outputDir: join(__dirname, '../../../chrona/public/data/sf-urban'),
-  layerName: 'buildings',
-  isNdjson: false,
+  name: 'LA County',
+  inputPath: join(__dirname, '../../../chrona/public/data/la-county/parcels-detailed.ndjson'),
+  outputDir: join(__dirname, '../../../chrona/public/data/la-county'),
+  layerName: 'parcels',
+  isNdjson: true,
 }).catch((err) => {
   console.error('Pipeline failed:', err);
   process.exit(1);
