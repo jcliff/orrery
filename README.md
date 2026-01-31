@@ -6,7 +6,7 @@ Timelapse visualization platform for geospatial data. Watch cities grow, storms 
 
 - **Railroads** — US railroad network expansion (1850–1876)
 - **Hurricanes** — Atlantic hurricane tracks (1851–present)
-- **Bay Area** — Regional building development (1848–present, 770k+ parcels)
+- **Bay Area** — Regional building development (1848–present, 950k+ parcels)
   - SF Urban, Palo Alto, Campbell, Solano, Livermore
   - Santa Clara, Hayward, Sonoma, Santa Rosa
   - Pittsburg, Walnut Creek, Brentwood, Berkeley

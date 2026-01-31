@@ -688,6 +688,91 @@ export const NYC_PLUTO: SourceDefinition = {
   notes: 'Has latitude/longitude fields for point geometry construction.',
 };
 
+export const WASHOE_COUNTY: SourceDefinition = {
+  id: 'washoe',
+  name: 'Washoe County Parcels',
+  country: 'US',
+  region: 'Nevada',
+  city: 'Reno',
+  api: {
+    type: 'arcgis',
+    url: 'https://wcgisweb.washoecounty.us/arcgis/rest/services/OpenData/OpenData/MapServer/0/query',
+    outFields: [
+      'APN',
+      'YEARBLT',
+      'AVCONSYEAR',
+      'LAND_USE',
+      'FullAddress',
+      'CITY',
+      'SQFEET',
+      'ACREAGE',
+      'BUILDINGTYPE',
+      'STORIES',
+      'UNITS',
+      'BEDROOMS',
+      'BATHS',
+    ],
+    where: 'YEARBLT > 1800',
+  },
+  schema: {
+    sourceId: 'washoe',
+    fieldMapping: {
+      id: 'APN',
+      yearBuilt: ['YEARBLT', 'AVCONSYEAR'],
+      effectiveYear: 'AVCONSYEAR',
+      landUse: 'LAND_USE',
+      address: 'FullAddress',
+      city: 'CITY',
+      area: 'SQFEET',
+      stories: 'STORIES',
+      units: 'UNITS',
+    },
+    areaUnit: 'sqft',
+  },
+  expectedCount: 200000,
+  updateFrequency: 'monthly',
+  attribution: 'Washoe County',
+  attributionUrl: 'https://www.washoecounty.gov/gis/',
+};
+
+export const LYON_COUNTY: SourceDefinition = {
+  id: 'lyon',
+  name: 'Lyon County Parcels',
+  country: 'US',
+  region: 'Nevada',
+  city: 'Lyon County',
+  api: {
+    type: 'arcgis',
+    url: 'https://gis.lyon-county.org/server/rest/services/Landbase/Parcels/MapServer/1/query',
+    outFields: [
+      'APN',
+      'PCONYR',
+      'PCMPYR',
+      'PHY_ADDR',
+      'PANAME',
+      'YLDUSE',
+      'YLANDV',
+      'YIMPRV',
+      'YNETV',
+    ],
+    where: 'PCONYR > 1800',
+  },
+  schema: {
+    sourceId: 'lyon',
+    fieldMapping: {
+      id: 'APN',
+      yearBuilt: ['PCONYR', 'PCMPYR'],
+      address: 'PHY_ADDR',
+      landUse: 'YLDUSE',
+    },
+  },
+  expectedCount: 35000,
+  updateFrequency: 'monthly',
+  attribution: 'Lyon County',
+  attributionUrl: 'https://gis.lyon-county.org',
+  notes: 'PCONYR is original construction year. ~66% of parcels have year built.',
+};
+
 export const CLARK_COUNTY: SourceDefinition = {
   id: 'clark-county',
   name: 'Clark County Parcels',
@@ -1004,6 +1089,9 @@ export const SOURCES: Record<string, SourceDefinition> = {
   // Other US
   'la-county': LA_COUNTY,
   'nyc-pluto': NYC_PLUTO,
+  // Nevada
+  washoe: WASHOE_COUNTY,
+  lyon: LYON_COUNTY,
   'clark-county': CLARK_COUNTY,
   // International
   toronto: TORONTO,
@@ -1038,33 +1126,122 @@ export function listSourcesByRegion(region: string): SourceDefinition[] {
 // Research Notes: Dead Ends and Potential Future Sources
 // ============================================================================
 //
-// BAY AREA - NO PUBLIC YEAR BUILT DATA:
-// - San Mateo County: No public year built in parcel layers
-//   - Redwood City, Daly City, San Mateo city, South San Francisco
-// - Alameda County: https://services5.arcgis.com/ROBnTHSNjoZ2Wm1P/arcgis/rest/services/Parcels/FeatureServer/0
-//   - Has parcel boundaries but NO year built field
-//   - Assessor data separate from GIS
-// - Marin County: https://gis.marinpublic.com/arcgis/rest/services/MarinMap2/Open_Data_Download/MapServer/35
-//   - Parcels have UseCd, Jurisdiction, Acres but NO year built
-// - Napa County: https://gis.napacounty.gov/arcgis/rest/services/Hosted/Parcels_Public/FeatureServer/0
-//   - Has asmt, zip, landuse1, acres but NO year built
-// - Concord, Antioch, Pleasant Hill: Use Contra Costa County data, no city-specific year built
-// - Sunnyvale: Has GIS but no public parcel layer with year built
-// - Mountain View, Cupertino, Los Gatos, Saratoga: No accessible endpoints
-// - Oakland, Fremont: No public ArcGIS endpoints found
-// - San Jose: Data portal exists but year built field not confirmed in REST API
+// CATEGORIZATION KEY:
+// [CONFIRMED NO YR] = GIS endpoint exists, verified NO year built field
+// [NO GIS FOUND]    = Could not locate public ArcGIS/GIS endpoint
+// [DOWNLOAD ONLY]   = Data available as file download, not REST API
+// [NOT SEARCHED]    = Not thoroughly investigated
 //
-// MAPSERVER QUIRKS:
-// - Berkeley: Uses EPSG:32610 (UTM Zone 10N), f=geojson fails at scale
-//   - Solution: Use f=json and convert with proj4 reprojection
-// - Some MapServers don't support resultOffset pagination properly
-//   - Solution: Use sequential fetching with concurrency=1
+// ============================================================================
+// BAY AREA - GIS EXISTS BUT NO YEAR BUILT FIELD
+// ============================================================================
 //
-// CONTRA COSTA COUNTY - GOOD SOURCE AREA:
-// - Pittsburg, Walnut Creek, Brentwood all have YR_HS_BLT field
-// - County shapefile download available at https://gis.cccounty.us/Downloads/Assessor/
+// San Jose [CONFIRMED NO YR]
+//   Endpoint: https://geo.sanjoseca.gov/server/rest/services/OPN/OPN_OpenDataService/MapServer/270
+//   Fields: PARCELID, APN, LOTNUM, PARCELTYPE, LASTUPDATE - NO year built
+//   Note: Large city (1M+ pop), year built likely in assessor DB but not in GIS API
 //
-// POTENTIAL FUTURE SOURCES:
-// - Contra Costa County shapefile (monthly updates, would need offline processing)
-// - San Jose city data (needs investigation of specific endpoint)
-// - Gilroy (part of Santa Clara County, may have year built)
+// Alameda County [CONFIRMED NO YR]
+//   Endpoint: https://services5.arcgis.com/ROBnTHSNjoZ2Wm1P/arcgis/rest/services/Parcels/FeatureServer/0
+//   Fields: APN, parcel geometry only - NO year built, land use, or assessor data
+//   Note: Assessor data is separate system, not joined to public GIS
+//
+// Marin County [CONFIRMED NO YR]
+//   Endpoint: https://gis.marinpublic.com/arcgis/rest/services/MarinMap2/Open_Data_Download/MapServer/35
+//   Fields: UseCd, Jurisdiction, Acres, PropID - NO year built
+//   Building footprints have SourceDateYear (imagery date) not construction year
+//
+// Napa County [CONFIRMED NO YR]
+//   Endpoint: https://gis.napacounty.gov/arcgis/rest/services/Hosted/Parcels_Public/FeatureServer/0
+//   Fields: asmt, zip, landuse1, acres - NO year built
+//
+// San Mateo County [CONFIRMED NO YR]
+//   Multiple searches found no public parcel layer with year built
+//   Cities: Redwood City, Daly City, San Mateo, South San Francisco
+//
+// Concord [CONFIRMED NO YR]
+//   Endpoint: https://concordgis.ci.concord.ca.us/public/rest/services/OpenCounter/MapServer/19
+//   Fields: APN, address, zoning - NO year built
+//   Note: Parcel layer exists but no assessor data joined
+//
+// Sunnyvale [CONFIRMED NO YR]
+//   Has GIS portal but no public parcel layer with year built found
+//
+// ============================================================================
+// BAY AREA - NO PUBLIC GIS ENDPOINT FOUND
+// ============================================================================
+//
+// Oakland [NO GIS FOUND]
+//   No public ArcGIS REST endpoint found for parcels
+//   May use Alameda County data (which has no year built)
+//
+// Fremont [NO GIS FOUND]
+//   No public ArcGIS REST endpoint found for parcels
+//   May use Alameda County data (which has no year built)
+//
+// Antioch [NO GIS FOUND]
+//   Uses third-party app (antiochprospector.com) for parcel lookup
+//   No direct ArcGIS FeatureServer endpoint found
+//
+// Pleasant Hill [NO GIS FOUND]
+//   Uses Contra Costa County CCMAP (requires auth)
+//   No city-specific public endpoint found
+//
+// San Rafael [NO GIS FOUND]
+//   Open Data Portal exists but FeatureServer endpoints not publicly accessible
+//   Marin County parcels (above) have no year built anyway
+//
+// Mountain View, Cupertino, Los Gatos, Saratoga [NO GIS FOUND]
+//   No accessible public ArcGIS endpoints found
+//
+// ============================================================================
+// BAY AREA - DOWNLOAD ONLY (NOT REST API)
+// ============================================================================
+//
+// Contra Costa County [DOWNLOAD ONLY]
+//   Download: https://gis.cccounty.us/Downloads/Assessor/
+//   Monthly shapefile updates (Parcels_Public_*.zip)
+//   Year built likely in shapefile but requires offline processing
+//   Note: Pittsburg, Walnut Creek, Brentwood have city APIs with year built
+//
+// ============================================================================
+// BAY AREA - NOT THOROUGHLY SEARCHED
+// ============================================================================
+//
+// Gilroy [NOT SEARCHED]
+//   Part of Santa Clara County, may have separate city GIS with year built
+//
+// Morgan Hill [NOT SEARCHED]
+//   Part of Santa Clara County
+//
+// Milpitas [NOT SEARCHED]
+//   Part of Santa Clara County
+//
+// ============================================================================
+// MAPSERVER QUIRKS & WORKAROUNDS
+// ============================================================================
+//
+// Berkeley: Uses EPSG:32610 (UTM Zone 10N), f=geojson fails at scale
+//   Solution: Use f=json format and convert with proj4 reprojection
+//   See: fieldline/src/pipelines/berkeley-fetch.ts
+//
+// Some MapServers don't support resultOffset pagination properly
+//   Solution: Use sequential fetching with concurrency=1
+//
+// ============================================================================
+// WORKING BAY AREA SOURCES (13 total)
+// ============================================================================
+//
+// San Francisco (Socrata): ~212k buildings, 1848-present
+// Palo Alto (FeatureServer): ~30k parcels
+// Campbell (FeatureServer): ~15k parcels
+// Solano County (FeatureServer): ~155k parcels
+// Livermore (FeatureServer): ~52k parcels
+// Santa Clara (MapServer): ~35k parcels
+// Hayward (MapServer): ~68k parcels
+// Sonoma County (FeatureServer): ~200k parcels
+// Santa Rosa (FeatureServer): ~80k parcels
+// Pittsburg (FeatureServer): ~25k parcels, YR_HS_BLT field
+// Walnut Creek (MapServer): ~30k parcels, apn_pt_YR_HS_BLT field
+// Brentwood (MapServer): ~25k parcels, YR_HS_BLT field
+// Berkeley (MapServer): ~27k parcels, needs f=json + proj4 reprojection

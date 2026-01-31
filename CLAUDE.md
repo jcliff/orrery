@@ -20,6 +20,32 @@ pnpm --filter fieldline pipeline:palo-alto
 pnpm --filter fieldline pipeline:palo-alto-tiles
 # Similar pattern for: campbell, solano, livermore, santa-clara, hayward,
 # sonoma, santa-rosa, pittsburg, walnut-creek, brentwood, berkeley
+
+# Northern Nevada parcel pipelines
+# Washoe & Lyon have year built in GIS data (direct fetch)
+pnpm --filter fieldline pipeline:washoe-fetch
+pnpm --filter fieldline pipeline:washoe
+pnpm --filter fieldline pipeline:washoe-tiles
+pnpm --filter fieldline pipeline:lyon-fetch
+pnpm --filter fieldline pipeline:lyon
+pnpm --filter fieldline pipeline:lyon-tiles
+
+# Carson City, Douglas, Storey (scrape assessor → geocode → process)
+# Step 1: Scrape assessor data
+pnpm --filter fieldline scrape:carson-assessor
+pnpm --filter fieldline scrape:douglas-assessor
+pnpm --filter fieldline scrape:storey-assessor
+# Step 2: Geocode addresses to create point geometry
+pnpm --filter fieldline geocode:carson-assessor
+pnpm --filter fieldline geocode:douglas-assessor
+pnpm --filter fieldline geocode:storey-assessor
+# Step 3: Process and generate tiles
+pnpm --filter fieldline pipeline:carson-city
+pnpm --filter fieldline pipeline:carson-city-tiles
+pnpm --filter fieldline pipeline:douglas
+pnpm --filter fieldline pipeline:douglas-tiles
+pnpm --filter fieldline pipeline:storey
+pnpm --filter fieldline pipeline:storey-tiles
 ```
 
 ## Structure
@@ -55,23 +81,51 @@ Data flow: Raw source → Fieldline → GeoJSON/PMTiles in `chrona/public/data/`
 
 ## Bay Area Data Sources
 
-**Working sources with year built data:**
-- SF Urban (Socrata), Palo Alto, Campbell, Solano County, Livermore
-- Santa Clara, Hayward, Sonoma County, Santa Rosa
-- Pittsburg, Walnut Creek, Brentwood (Contra Costa County)
-- Berkeley (MapServer - requires JSON format + UTM reprojection)
+**Working sources with year built (13 areas, 770k+ parcels):**
+- SF Urban (Socrata): ~212k buildings
+- Palo Alto, Campbell, Solano County, Livermore: ~252k parcels
+- Santa Clara, Hayward, Sonoma County, Santa Rosa: ~383k parcels
+- Pittsburg, Walnut Creek, Brentwood (Contra Costa): ~80k parcels
+- Berkeley (MapServer): ~27k parcels, requires f=json + proj4 reprojection
 
-**Dead ends (no public year built data):**
-- San Mateo County / cities (Redwood City, Daly City, etc.)
-- Alameda County parcel layer (has boundaries only, no year built)
-- Oakland, Fremont (no accessible endpoints)
-- Marin County (parcels lack year built field)
-- Napa County (parcels lack year built field)
-- Concord, Antioch, Pleasant Hill (no public year built data)
-- Sunnyvale, Mountain View, Cupertino (no parcel services found)
-- San Jose (endpoint exists but year built field not confirmed)
+**GIS exists but NO year built field:**
+- San Jose: `geo.sanjoseca.gov/.../MapServer/270` - parcels but no year built
+- Alameda County: Has parcel boundaries only, assessor data separate
+- Marin County: Parcels have UseCd, Acres but no year built
+- Napa County: Parcels have landuse, acres but no year built
+- San Mateo County: No public year built in parcel layers
+- Concord: Parcel layer exists but no assessor data joined
+- Sunnyvale: GIS portal but no year built in parcels
+
+**No public GIS endpoint found:**
+- Oakland, Fremont: No ArcGIS REST endpoints (use Alameda County data)
+- Antioch, Pleasant Hill: Use third-party apps or county auth-required endpoints
+- San Rafael: Portal exists but endpoints not publicly accessible
+- Mountain View, Cupertino, Los Gatos, Saratoga: No accessible endpoints
+
+**Download only (not REST API):**
+- Contra Costa County: Shapefile download at `gis.cccounty.us/Downloads/Assessor/`
+
+**Not thoroughly searched:**
+- Gilroy, Morgan Hill, Milpitas (Santa Clara County cities)
 
 **MapServer quirks:**
 - Some MapServers don't support `f=geojson` with geometry at scale
-- Use `f=json` and convert ESRI JSON to GeoJSON manually
-- Check `spatialReference.wkid` for coordinate system (may need proj4 reprojection)
+- Solution: Use `f=json` and convert ESRI JSON to GeoJSON manually
+- Check `spatialReference.wkid` for coordinate system (may need proj4)
+- See `fieldline/src/pipelines/berkeley-fetch.ts` for example
+
+## Northern Nevada Data Sources
+
+**Working sources with year built (5 counties, ~250k parcels):**
+- Washoe County (Reno/Sparks): ~165k parcels, `YEARBLT` field via REST API
+  - Endpoint: `wcgisweb.washoecounty.us/arcgis/rest/services/OpenData/OpenData/MapServer/0`
+- Lyon County (Fernley/Dayton/Yerington): ~40k parcels, year built via REST API
+  - Endpoint: `gis.lyon-county.org/arcgis/rest/services/Parcels/FeatureServer/0`
+- Carson City: ~18k parcels, assessor scrape + geocoding
+  - Assessor: `carsoncitynv.devnetwedge.com` (search by year built, scrape results)
+- Douglas County (Minden/Gardnerville): ~25k parcels, assessor scrape + geocoding
+  - Assessor: `douglasnv-search.gsacorp.io` (search by Original Constr Year, scrape results)
+- Storey County (Virginia City): ~2.5k parcels, assessor scrape + geocoding
+  - Historic Comstock Lode territory, buildings dating to 1860s
+  - Assessor: Uses GSA Corp endpoint similar to Douglas
