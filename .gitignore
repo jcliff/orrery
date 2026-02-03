@@ -3,9 +3,11 @@ dist/
 *.log
 *.tmp
 .DS_Store
+.env.local
 
 # Data files (code only in git)
 fieldline/data/
+fieldline/src/data/
 chrona/public/data/
 projects/*/public/*.geojson
 projects/*/public/*.json
