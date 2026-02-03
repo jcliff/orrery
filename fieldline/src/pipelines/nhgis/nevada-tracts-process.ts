@@ -178,6 +178,9 @@ async function main() {
     const areaSqMiles = record.areaLand / 2589988.11;
     const popDensity = areaSqMiles > 0 ? record.totalPop / areaSqMiles : 0;
 
+    // End time is the next census (10 years later)
+    const endYear = record.year + 10;
+
     features.push({
       type: 'Feature',
       properties: {
@@ -186,6 +189,7 @@ async function main() {
         county: record.county,
         year: record.year,
         startTime: `${record.year}-01-01T00:00:00Z`,
+        endTime: `${endYear}-01-01T00:00:00Z`,
         totalPop: record.totalPop,
         area: Math.round(areaSqMiles * 10) / 10,
         popDensity: Math.round(popDensity * 10) / 10,

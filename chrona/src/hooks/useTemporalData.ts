@@ -88,9 +88,16 @@ export function useTemporalData(config: VisualizationConfig): UseTemporalDataRes
           const year = f.properties.year as number;
           if (year < startYear || year > endYear) return false;
 
-          if (!accumulateMode) {
-            // Use startTime or endTime depending on what's available
-            const timeStr = (f.properties.endTime || f.properties.startTime) as string;
+          // If feature has an explicit endTime, exclude it when current time is past that
+          const endTimeStr = f.properties.endTime as string | undefined;
+          if (endTimeStr) {
+            const endTime = new Date(endTimeStr).getTime();
+            if (currentMs >= endTime) return false;
+          }
+
+          if (!accumulateMode && !endTimeStr) {
+            // For features without endTime, use fade-based filtering
+            const timeStr = f.properties.startTime as string;
             const featureTime = new Date(timeStr).getTime();
             const age = currentMs - featureTime;
             if (age > fadeMs) return false;
@@ -100,9 +107,14 @@ export function useTemporalData(config: VisualizationConfig): UseTemporalDataRes
         })
         .map((f) => {
           let opacity = 0.7;
+          const endTimeStr = f.properties.endTime as string | undefined;
 
-          if (!accumulateMode) {
-            const timeStr = (f.properties.endTime || f.properties.startTime) as string;
+          // Features with explicit endTime stay at full opacity (no fade)
+          if (endTimeStr) {
+            opacity = 0.8;
+          } else if (!accumulateMode) {
+            // For features without endTime, apply fade-based opacity
+            const timeStr = f.properties.startTime as string;
             const featureTime = new Date(timeStr).getTime();
             const age = currentMs - featureTime;
 

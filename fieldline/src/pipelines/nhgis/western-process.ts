@@ -1,11 +1,11 @@
 /**
- * Nevada NHGIS processing pipeline.
+ * Western US (California + Nevada) NHGIS processing pipeline.
  *
  * Processes downloaded NHGIS data into visualization-ready GeoJSON.
  * Uses historical county boundaries from NHGIS shapefiles for each decade.
  *
  * Usage:
- *   pnpm --filter fieldline pipeline:nhgis-nevada
+ *   pnpm --filter fieldline pipeline:nhgis-western
  */
 
 import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -21,7 +21,14 @@ proj4.defs(
 );
 
 const INPUT_DIR = new URL('../../data/raw/nhgis/nevada-historical', import.meta.url).pathname;
-const OUTPUT_DIR = new URL('../../../../chrona/public/data/nhgis-nevada', import.meta.url).pathname;
+const OUTPUT_DIR = new URL('../../../../chrona/public/data/nhgis-western', import.meta.url).pathname;
+
+// Western states: California (06) and Nevada (32)
+const WESTERN_STATE_FIPS = ['G06', 'G32'];
+
+function isWesternState(gisjoin: string): boolean {
+  return WESTERN_STATE_FIPS.some(fips => gisjoin.startsWith(fips));
+}
 
 /**
  * Reproject a coordinate from Albers to WGS84
@@ -111,8 +118,8 @@ async function loadHistoricalBoundaries(year: number): Promise<Map<string, Count
       const gisjoin = props.GISJOIN as string;
       if (!gisjoin) continue;
 
-      // Filter to Nevada only (GISJOIN starts with G32)
-      if (!gisjoin.startsWith('G32')) continue;
+      // Filter to Western states (California + Nevada)
+      if (!isWesternState(gisjoin)) continue;
 
       // Get county name (different field names in different years)
       const name = (props.NHGISNAM as string) ||
@@ -131,7 +138,7 @@ async function loadHistoricalBoundaries(year: number): Promise<Map<string, Count
       });
     }
 
-    console.log(`  ${year}: Loaded ${boundaries.size} Nevada county boundaries`);
+    console.log(`  ${year}: Loaded ${boundaries.size} Western US county boundaries`);
   } catch (err) {
     console.warn(`  ${year}: Could not load shapefile (${(err as Error).message})`);
   }
@@ -219,8 +226,8 @@ async function parseCSV(csvPath: string): Promise<CensusRecord[]> {
 
     const gisjoin = values[gisJoinIdx]?.replace(/"/g, '') || '';
 
-    // Filter to Nevada only (GISJOIN starts with G32)
-    if (!gisjoin.startsWith('G32')) continue;
+    // Filter to Western states (California + Nevada)
+    if (!isWesternState(gisjoin)) continue;
 
     const year = yearIdx >= 0 ? parseInt(values[yearIdx], 10) : 0;
     const state = stateIdx >= 0 ? values[stateIdx]?.replace(/"/g, '') : '';
@@ -244,8 +251,8 @@ async function parseCSV(csvPath: string): Promise<CensusRecord[]> {
 }
 
 async function main() {
-  console.log('NHGIS Nevada Processing Pipeline');
-  console.log('=================================\n');
+  console.log('NHGIS Western US Processing Pipeline');
+  console.log('====================================\n');
 
   // Find all CSV files
   const csvFiles = await findCSVFiles(INPUT_DIR);
@@ -265,7 +272,7 @@ async function main() {
     const fileName = basename(csvFile);
     const records = await parseCSV(csvFile);
     if (records.length > 0) {
-      console.log(`  ${fileName}: ${records.length} Nevada records`);
+      console.log(`  ${fileName}: ${records.length} Western US records`);
       allRecords.push(...records);
     }
   }
@@ -377,7 +384,7 @@ async function main() {
 
   // Write metadata
   const metadata = {
-    name: 'Nevada Census Data',
+    name: 'Western US Census Data (California + Nevada)',
     source: 'NHGIS (IPUMS)',
     years: Array.from(yearFeatures.keys()).sort((a, b) => a - b),
     totalFeatures: features.length,

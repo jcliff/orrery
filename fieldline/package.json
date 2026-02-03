@@ -92,6 +92,7 @@
     "pipeline:nhgis-nevada-tracts": "node --import tsx src/pipelines/nhgis/nevada-tracts-process.ts",
     "pipeline:nhgis-nevada-places": "node --import tsx src/pipelines/nhgis/nevada-places-process.ts",
     "pipeline:nhgis-nevada-tiles": "node --import tsx src/pipelines/nhgis/nevada-tiles.ts",
+    "pipeline:nhgis-western": "node --import tsx src/pipelines/nhgis/western-process.ts",
     "scrape:carson-assessor": "node --import tsx src/scripts/scrape-carson-assessor.ts",
     "scrape:douglas-assessor": "node --import tsx src/scripts/scrape-douglas-assessor.ts",
     "scrape:storey-assessor": "node --import tsx src/scripts/scrape-storey-assessor.ts",

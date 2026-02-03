@@ -43,7 +43,7 @@ export const nhgisNevadaConfig: VisualizationConfig = {
         'fill-opacity': 0.7,
       },
       temporal: {
-        mode: 'cumulative',
+        mode: 'active',
         useGpuFilter: false,
       },
     },
@@ -58,7 +58,7 @@ export const nhgisNevadaConfig: VisualizationConfig = {
         'line-opacity': 0.8,
       },
       temporal: {
-        mode: 'cumulative',
+        mode: 'active',
         useGpuFilter: false,
       },
     },
@@ -80,7 +80,7 @@ export const nhgisNevadaConfig: VisualizationConfig = {
         'circle-stroke-width': 1,
       },
       temporal: {
-        mode: 'cumulative',
+        mode: 'active',
         useGpuFilter: false,
       },
     },
@@ -102,7 +102,7 @@ export const nhgisNevadaConfig: VisualizationConfig = {
         'circle-stroke-width': 2,
       },
       temporal: {
-        mode: 'cumulative',
+        mode: 'active',
         useGpuFilter: false,
       },
     },
@@ -125,7 +125,7 @@ export const nhgisNevadaConfig: VisualizationConfig = {
         'text-halo-width': 1,
       },
       temporal: {
-        mode: 'cumulative',
+        mode: 'active',
         useGpuFilter: false,
       },
     },
