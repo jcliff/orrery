@@ -8,7 +8,7 @@
  *   pnpm --filter fieldline pipeline:nhgis-western
  */
 
-import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readdir, readFile, writeFile, mkdir, open } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import * as shapefile from 'shapefile';
 import proj4 from 'proj4';
@@ -23,8 +23,8 @@ proj4.defs(
 const INPUT_DIR = new URL('../../data/raw/nhgis/nevada-historical', import.meta.url).pathname;
 const OUTPUT_DIR = new URL('../../../../chrona/public/data/nhgis-western', import.meta.url).pathname;
 
-// Western states: California (06), Nevada (32), Oregon (41)
-const WESTERN_STATE_FIPS = ['G06', 'G32', 'G41'];
+// Western states: California (06), Nevada (32), Oregon (41), Washington (53)
+const WESTERN_STATE_FIPS = ['G06', 'G32', 'G41', 'G53'];
 
 function isWesternState(gisjoin: string): boolean {
   return WESTERN_STATE_FIPS.some(fips => gisjoin.startsWith(fips));
@@ -370,21 +370,25 @@ async function main() {
     console.log(`  ${year}: ${yf.length} counties, ${totalPop.toLocaleString()} total pop`);
   }
 
-  // Write output
+  // Write output - stream to avoid string length limits
   await mkdir(OUTPUT_DIR, { recursive: true });
 
-  const geojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features,
-  };
-
   const outputPath = join(OUTPUT_DIR, 'counties.geojson');
-  await writeFile(outputPath, JSON.stringify(geojson));
+  const file = await open(outputPath, 'w');
+
+  await file.write('{"type":"FeatureCollection","features":[');
+  for (let i = 0; i < features.length; i++) {
+    if (i > 0) await file.write(',');
+    await file.write(JSON.stringify(features[i]));
+  }
+  await file.write(']}');
+  await file.close();
+
   console.log(`\nWrote ${outputPath}`);
 
   // Write metadata
   const metadata = {
-    name: 'Western US Census Data (California, Nevada, Oregon)',
+    name: 'Western US Census Data (CA, NV, OR, WA)',
     source: 'NHGIS (IPUMS)',
     years: Array.from(yearFeatures.keys()).sort((a, b) => a - b),
     totalFeatures: features.length,
