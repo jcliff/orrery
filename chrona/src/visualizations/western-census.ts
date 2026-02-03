@@ -4,9 +4,9 @@ export const westernCensusConfig: VisualizationConfig = {
   id: 'western-census',
   name: 'Western Census History',
 
-  // Center to show California and Nevada
-  center: [-119.5, 37.5],
-  zoom: 5.5,
+  // Center to show California, Nevada, and Oregon
+  center: [-120.5, 39.5],
+  zoom: 5,
 
   timeRange: {
     start: '1870-01-01',

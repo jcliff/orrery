@@ -23,8 +23,8 @@ proj4.defs(
 const INPUT_DIR = new URL('../../data/raw/nhgis/nevada-historical', import.meta.url).pathname;
 const OUTPUT_DIR = new URL('../../../../chrona/public/data/nhgis-western', import.meta.url).pathname;
 
-// Western states: California (06) and Nevada (32)
-const WESTERN_STATE_FIPS = ['G06', 'G32'];
+// Western states: California (06), Nevada (32), Oregon (41)
+const WESTERN_STATE_FIPS = ['G06', 'G32', 'G41'];
 
 function isWesternState(gisjoin: string): boolean {
   return WESTERN_STATE_FIPS.some(fips => gisjoin.startsWith(fips));
@@ -384,7 +384,7 @@ async function main() {
 
   // Write metadata
   const metadata = {
-    name: 'Western US Census Data (California + Nevada)',
+    name: 'Western US Census Data (California, Nevada, Oregon)',
     source: 'NHGIS (IPUMS)',
     years: Array.from(yearFeatures.keys()).sort((a, b) => a - b),
     totalFeatures: features.length,
