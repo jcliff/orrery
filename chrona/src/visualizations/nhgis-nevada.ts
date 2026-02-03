@@ -21,10 +21,14 @@ export const nhgisNevadaConfig: VisualizationConfig = {
       url: '/data/nhgis-nevada/counties.geojson',
     },
     {
-      id: 'nhgis-nevada-tiles',
-      type: 'pmtiles',
-      url: 'pmtiles:///data/nhgis-nevada/counties.pmtiles',
-      sourceLayer: 'counties',
+      id: 'nhgis-nevada-tracts',
+      type: 'geojson',
+      url: '/data/nhgis-nevada/tracts.geojson',
+    },
+    {
+      id: 'nhgis-nevada-places',
+      type: 'geojson',
+      url: '/data/nhgis-nevada/places.geojson',
     },
   ],
 
@@ -52,6 +56,73 @@ export const nhgisNevadaConfig: VisualizationConfig = {
         'line-color': '#333',
         'line-width': 1,
         'line-opacity': 0.8,
+      },
+      temporal: {
+        mode: 'cumulative',
+        useGpuFilter: false,
+      },
+    },
+    // Census tracts (show at higher zoom levels, 2000-2020 only)
+    {
+      id: 'nhgis-nevada-tracts',
+      sourceId: 'nhgis-nevada-tracts',
+      type: 'circle',
+      minzoom: 8,
+      paint: {
+        'circle-color': ['get', 'color'],
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          8, 3,
+          12, 8,
+        ],
+        'circle-opacity': 0.8,
+        'circle-stroke-color': '#333',
+        'circle-stroke-width': 1,
+      },
+      temporal: {
+        mode: 'cumulative',
+        useGpuFilter: false,
+      },
+    },
+    // Places (cities/towns) - show as larger circles with labels
+    {
+      id: 'nhgis-nevada-places',
+      sourceId: 'nhgis-nevada-places',
+      type: 'circle',
+      minzoom: 7,
+      paint: {
+        'circle-color': ['get', 'color'],
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          7, 5,
+          10, 12,
+        ],
+        'circle-opacity': 0.9,
+        'circle-stroke-color': '#000',
+        'circle-stroke-width': 2,
+      },
+      temporal: {
+        mode: 'cumulative',
+        useGpuFilter: false,
+      },
+    },
+    // Place labels
+    {
+      id: 'nhgis-nevada-places-labels',
+      sourceId: 'nhgis-nevada-places',
+      type: 'symbol',
+      minzoom: 8,
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-size': 11,
+        'text-offset': [0, 1.5],
+        'text-anchor': 'top',
+        'text-optional': true,
+      },
+      paint: {
+        'text-color': '#333',
+        'text-halo-color': '#fff',
+        'text-halo-width': 1,
       },
       temporal: {
         mode: 'cumulative',
@@ -94,22 +165,30 @@ export const nhgisNevadaConfig: VisualizationConfig = {
   },
 
   popup: {
-    layers: ['nhgis-nevada-fill'],
-    render: (props) => {
+    layers: ['nhgis-nevada-fill', 'nhgis-nevada-tracts', 'nhgis-nevada-places'],
+    render: (props, layerId) => {
       const name = props.name as string;
       const year = props.year as number;
       const totalPop = props.totalPop as number;
-      const housingUnits = props.housingUnits as number | undefined;
       const area = props.area as number;
       const popDensity = props.popDensity as number;
+      const county = props.county as string | undefined;
+
+      // Determine the type based on layer
+      let typeLabel = 'County';
+      if (layerId === 'nhgis-nevada-tracts') {
+        typeLabel = `Census Tract${county ? ` (${county} County)` : ''}`;
+      } else if (layerId === 'nhgis-nevada-places') {
+        typeLabel = 'City/Town';
+      }
 
       return `
-        <strong>${name} County</strong><br/>
+        <strong>${name}</strong><br/>
+        <em>${typeLabel}</em><br/>
         Census: ${year}<br/>
         Population: ${totalPop.toLocaleString()}<br/>
-        ${housingUnits !== undefined ? `Housing Units: ${housingUnits.toLocaleString()}<br/>` : ''}
-        Area: ${area.toLocaleString()} sq mi<br/>
-        Density: ${popDensity.toFixed(1)}/sq mi
+        ${area > 0 ? `Area: ${area.toLocaleString()} sq mi<br/>` : ''}
+        ${popDensity > 0 ? `Density: ${popDensity.toFixed(1)}/sq mi` : ''}
       `;
     },
   },

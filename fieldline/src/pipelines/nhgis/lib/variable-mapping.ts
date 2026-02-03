@@ -71,12 +71,37 @@ export const HOUSING_TABLES: Record<number, string> = {
 };
 
 /**
- * Geographic level codes for county data.
+ * Geographic level codes.
  */
 export const GEOG_LEVELS = {
   county: 'county',
+  tract: 'tract',
+  place: 'place',
   state: 'state',
   nation: 'nation',
+};
+
+/**
+ * Datasets with tract-level data (2000-2020).
+ * Census tracts have comprehensive coverage starting in 2000.
+ */
+export const TRACT_DATASETS: Record<number, string> = {
+  2000: '2000_SF1a',
+  2010: '2010_SF1a',
+  2020: '2020_DHCa',
+};
+
+/**
+ * Datasets with place-level data (cities/towns).
+ * Places have good coverage from 1970 onward.
+ */
+export const PLACE_DATASETS: Record<number, string> = {
+  1970: '1970_Cnt1',
+  1980: '1980_STF1',
+  1990: '1990_STF1',
+  2000: '2000_SF1a',
+  2010: '2010_SF1a',
+  2020: '2020_DHCa',
 };
 
 /**
