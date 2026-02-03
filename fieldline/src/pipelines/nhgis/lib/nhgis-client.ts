@@ -6,6 +6,7 @@
  */
 
 const NHGIS_API_BASE = 'https://api.ipums.org/extracts';
+const NHGIS_COLLECTION_PARAMS = 'collection=nhgis&version=2';
 const RATE_LIMIT_DELAY_MS = 650;
 
 export interface ExtractDataset {
@@ -61,7 +62,8 @@ async function apiRequest<T>(
 ): Promise<T> {
   await delay(RATE_LIMIT_DELAY_MS);
 
-  const url = `${NHGIS_API_BASE}${path}`;
+  const separator = path.includes('?') ? '&' : '?';
+  const url = `${NHGIS_API_BASE}${path}${separator}${NHGIS_COLLECTION_PARAMS}`;
   const headers: Record<string, string> = {
     'Authorization': getApiKey(),
     'Content-Type': 'application/json',
@@ -85,21 +87,19 @@ export async function submitExtract(request: ExtractRequest): Promise<{ number: 
   console.log('Submitting NHGIS extract request...');
 
   const payload = {
-    nhgis: {
-      description: request.description,
-      datasets: Object.fromEntries(
-        request.datasets.map(ds => [
-          ds.name,
-          {
-            data_tables: ds.dataTables,
-            geog_levels: ds.geogLevels,
-          },
-        ])
-      ),
-      data_format: request.dataFormat,
-      ...(request.shapefiles && { shapefiles: request.shapefiles }),
-      ...(request.geographicExtents && { geographic_extents: request.geographicExtents }),
-    },
+    description: request.description,
+    datasets: Object.fromEntries(
+      request.datasets.map(ds => [
+        ds.name,
+        {
+          dataTables: ds.dataTables,
+          geogLevels: ds.geogLevels,
+        },
+      ])
+    ),
+    dataFormat: request.dataFormat,
+    ...(request.shapefiles && { shapefiles: request.shapefiles }),
+    ...(request.geographicExtents && { geographicExtents: request.geographicExtents }),
   };
 
   const result = await apiRequest<{ number: number }>('POST', '/', payload);
@@ -111,20 +111,20 @@ export async function getStatus(extractNumber: number): Promise<ExtractStatus> {
   const result = await apiRequest<{
     number: number;
     status: ExtractStatus['status'];
-    download_links?: {
-      table_data?: { url: string };
-      gis_data?: { url: string };
-      codebook?: { url: string };
+    downloadLinks?: {
+      tableData?: { url: string };
+      gisData?: { url: string };
+      codebookPreview?: { url: string };
     };
-  }>('GET', `/${extractNumber}?collection=nhgis`);
+  }>('GET', `/${extractNumber}`);
 
   return {
     number: result.number,
     status: result.status,
-    downloadLinks: result.download_links ? {
-      tableData: result.download_links.table_data?.url,
-      gisData: result.download_links.gis_data?.url,
-      codebook: result.download_links.codebook?.url,
+    downloadLinks: result.downloadLinks ? {
+      tableData: result.downloadLinks.tableData?.url,
+      gisData: result.downloadLinks.gisData?.url,
+      codebook: result.downloadLinks.codebookPreview?.url,
     } : undefined,
   };
 }

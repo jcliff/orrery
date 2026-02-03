@@ -75,12 +75,13 @@ async function main() {
   console.log(`Total datasets: ${datasets.length}\n`);
 
   // Submit extract request
+  // Note: shapefiles and geographicExtents omitted for now - can add later
   const { number: extractNumber } = await client.submitExtract({
     description: 'Nevada county census data 1870-2020',
     datasets,
     dataFormat: 'csv_header',
-    shapefiles,
-    geographicExtents: ['320'],  // Nevada state FIPS
+    // shapefiles,
+    // geographicExtents: ['320'],  // Nevada state FIPS
   });
 
   console.log(`\nExtract #${extractNumber} submitted`);

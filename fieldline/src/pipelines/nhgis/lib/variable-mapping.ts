@@ -11,22 +11,22 @@
  * Format: {year}_{dataset_type}
  */
 export const DATASETS_BY_YEAR: Record<number, string> = {
-  1870: '1870_cPop',
-  1880: '1880_cPop',
-  1890: '1890_cPop',
-  1900: '1900_cPop',
-  1910: '1910_cPop',
-  1920: '1920_cPop',
-  1930: '1930_cPop',
-  1940: '1940_cPHAV',
-  1950: '1950_cPHAV',
-  1960: '1960_tPH',
-  1970: '1970_Cnt1',
-  1980: '1980_STF1',
-  1990: '1990_STF1',
-  2000: '2000_SF1a',
-  2010: '2010_SF1a',
-  2020: '2020_DHCa',
+  1870: '1870_cPAX',   // Population, Agriculture & Other Data [US, States & Counties]
+  1880: '1880_cPAX',   // Population, Agriculture & Other Data [US, States & Counties]
+  1890: '1890_cPHAM',  // Population, Housing, Agriculture & Manufacturing Data
+  1900: '1900_cPHAM',  // Population, Housing, Agriculture & Manufacturing Data
+  1910: '1910_cPHA',   // Population, Housing & Agriculture Data [US, States & Counties]
+  1920: '1920_cPHAM',  // Population, Housing, Agriculture & Manufacturing Data
+  1930: '1930_cPAE',   // Population, Agriculture & Economic Data [US, States & Counties]
+  1940: '1940_cPHAE',  // Population, Housing, Agriculture & Economic Data
+  1950: '1950_cPHA',   // Population, Housing & Agriculture Data
+  1960: '1960_cPop',   // Population Data [US, States, Counties]
+  1970: '1970_Cnt1',   // Count 1
+  1980: '1980_STF1',   // Summary Tape File 1
+  1990: '1990_STF1',   // Summary Tape File 1
+  2000: '2000_SF1a',   // Summary File 1a
+  2010: '2010_SF1a',   // Summary File 1a
+  2020: '2020_DHCa',   // Demographic and Housing Characteristics File a
 };
 
 /**
@@ -48,24 +48,26 @@ export const TOTAL_POP_TABLES: Record<number, string> = {
   1980: 'NT1A',   // Total Persons
   1990: 'NP1',    // Total Persons
   2000: 'NP001A', // Total Population
-  2010: 'H7V001', // Total Population
-  2020: 'U7B001', // Total Population
+  2010: 'P1',     // Total Population
+  2020: 'P1',     // Total Population
 };
 
 /**
  * Data table codes for housing units by year.
  * Housing data starts in 1940.
+ * Note: Disabled for now - need to verify correct table codes
  */
 export const HOUSING_TABLES: Record<number, string> = {
-  1940: 'NT9A',   // Total Housing Units
-  1950: 'NT11',
-  1960: 'NT70',
-  1970: 'NT87',
-  1980: 'NH1A',   // Total Housing Units
-  1990: 'NH1',    // Total Housing Units
-  2000: 'NH001A', // Total Housing Units
-  2010: 'H7X001', // Total Housing Units
-  2020: 'U7D001', // Total Housing Units
+  // Temporarily disabled until we verify the correct housing table codes
+  // 1940: 'NT9A',   // Total Housing Units
+  // 1950: 'NT11',
+  // 1960: 'NT70',
+  // 1970: 'NT87',
+  // 1980: 'NH1A',   // Total Housing Units
+  // 1990: 'NH1',    // Total Housing Units
+  // 2000: 'NH001A', // Total Housing Units
+  // 2010: 'H7X001', // Total Housing Units
+  // 2020: 'U7D001', // Total Housing Units
 };
 
 /**
