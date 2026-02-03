@@ -4,8 +4,8 @@ export const westernCensusConfig: VisualizationConfig = {
   id: 'western-census',
   name: 'Western Census History',
 
-  // Center to show AZ, CA, ID, NV, OR, UT, WA
-  center: [-116, 40],
+  // Center to show 11 Western states
+  center: [-112, 40],
   zoom: 4,
 
   timeRange: {

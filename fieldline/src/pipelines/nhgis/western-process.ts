@@ -23,8 +23,8 @@ proj4.defs(
 const INPUT_DIR = new URL('../../data/raw/nhgis/nevada-historical', import.meta.url).pathname;
 const OUTPUT_DIR = new URL('../../../../chrona/public/data/nhgis-western', import.meta.url).pathname;
 
-// Western states: Arizona (04), California (06), Idaho (16), Nevada (32), Oregon (41), Utah (49), Washington (53)
-const WESTERN_STATE_FIPS = ['G04', 'G06', 'G16', 'G32', 'G41', 'G49', 'G53'];
+// Western states: AZ(04), CA(06), CO(08), ID(16), MT(30), NV(32), NM(35), OR(41), UT(49), WA(53), WY(56)
+const WESTERN_STATE_FIPS = ['G04', 'G06', 'G08', 'G16', 'G30', 'G32', 'G35', 'G41', 'G49', 'G53', 'G56'];
 
 function isWesternState(gisjoin: string): boolean {
   return WESTERN_STATE_FIPS.some(fips => gisjoin.startsWith(fips));
@@ -388,7 +388,7 @@ async function main() {
 
   // Write metadata
   const metadata = {
-    name: 'Western US Census Data (AZ, CA, ID, NV, OR, UT, WA)',
+    name: 'Western US Census Data (11 states)',
     source: 'NHGIS (IPUMS)',
     years: Array.from(yearFeatures.keys()).sort((a, b) => a - b),
     totalFeatures: features.length,
