@@ -74,14 +74,12 @@ async function main() {
   console.log(`\nShapefiles: ${shapefiles.length} boundary files`);
   console.log(`Total datasets: ${datasets.length}\n`);
 
-  // Submit extract request
-  // Note: shapefiles and geographicExtents omitted for now - can add later
+  // Submit extract request with historical boundary shapefiles
   const { number: extractNumber } = await client.submitExtract({
-    description: 'Nevada county census data 1870-2020',
+    description: 'Nevada county census data 1870-2020 with historical boundaries',
     datasets,
     dataFormat: 'csv_header',
-    // shapefiles,
-    // geographicExtents: ['320'],  // Nevada state FIPS
+    shapefiles,
   });
 
   console.log(`\nExtract #${extractNumber} submitted`);

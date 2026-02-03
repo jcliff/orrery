@@ -2,25 +2,25 @@
  * Nevada NHGIS processing pipeline.
  *
  * Processes downloaded NHGIS data into visualization-ready GeoJSON.
- * Uses real county boundaries from Census TIGER/Line.
+ * Uses historical county boundaries from NHGIS shapefiles for each decade.
  *
  * Usage:
  *   pnpm --filter fieldline pipeline:nhgis-nevada
  */
 
 import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
+import * as shapefile from 'shapefile';
 import { getDensityColor } from './lib/variable-mapping.js';
 
-const INPUT_DIR = new URL('../../data/raw/nhgis/nevada', import.meta.url).pathname;
+const INPUT_DIR = new URL('../../data/raw/nhgis/nevada-historical', import.meta.url).pathname;
 const OUTPUT_DIR = new URL('../../../../chrona/public/data/nhgis-nevada', import.meta.url).pathname;
-const BOUNDARIES_PATH = join(INPUT_DIR, 'counties-boundaries.geojson');
 
 interface CountyBoundary {
   geometry: GeoJSON.Geometry;
   name: string;
-  area: number; // sq miles
-  geoid: string;
+  gisjoin: string;
+  areaLand?: number;
 }
 
 interface CensusRecord {
@@ -32,62 +32,71 @@ interface CensusRecord {
 }
 
 /**
- * Convert FIPS GEOID (e.g., "32029") to NHGIS GISJOIN (e.g., "G3200290")
+ * Load historical county boundaries from NHGIS shapefiles for a specific year.
+ * Returns a map of GISJOIN code to boundary data.
  */
-function geoidToGisjoin(geoid: string): string {
-  const state = geoid.slice(0, 2);
-  const county = geoid.slice(2);
-  return `G${state}0${county}0`;
-}
-
-/**
- * Load county boundaries from Census TIGER GeoJSON
- */
-async function loadBoundaries(): Promise<Map<string, CountyBoundary>> {
+async function loadHistoricalBoundaries(year: number): Promise<Map<string, CountyBoundary>> {
   const boundaries = new Map<string, CountyBoundary>();
 
+  // Determine shapefile path based on year
+  const shapeDir = join(INPUT_DIR, 'gis_data', 'nhgis0014_shape');
+  let shapeSubdir: string;
+  let shapeFile: string;
+
+  if (year === 2020) {
+    shapeSubdir = 'nhgis0014_shapefile_tl2020_us_county_2020';
+    shapeFile = 'US_county_2020.shp';
+  } else if (year === 2010) {
+    shapeSubdir = 'nhgis0014_shapefile_tl2010_us_county_2010';
+    shapeFile = 'US_county_2010.shp';
+  } else {
+    shapeSubdir = `nhgis0014_shapefile_tl2008_us_county_${year}`;
+    shapeFile = `US_county_${year}_conflated.shp`;
+  }
+
+  const shapePath = join(shapeDir, shapeSubdir, shapeFile);
+
   try {
-    const content = await readFile(BOUNDARIES_PATH, 'utf-8');
-    const geojson = JSON.parse(content) as GeoJSON.FeatureCollection;
+    const source = await shapefile.open(shapePath);
 
-    for (const feature of geojson.features) {
+    while (true) {
+      const result = await source.read();
+      if (result.done) break;
+
+      const feature = result.value as GeoJSON.Feature;
       const props = feature.properties || {};
-      const geoid = props.GEOID as string;
-      const gisjoin = geoidToGisjoin(geoid);
 
-      // AREALAND is in square meters
-      const areaLand = parseFloat(props.AREALAND) || 0;
-      const areaSqMiles = areaLand / 2589988.11;
+      // NHGIS shapefiles use GISJOIN as the key
+      const gisjoin = props.GISJOIN as string;
+      if (!gisjoin) continue;
+
+      // Filter to Nevada only (GISJOIN starts with G32)
+      if (!gisjoin.startsWith('G32')) continue;
+
+      // Get county name (different field names in different years)
+      const name = (props.NHGISNAM as string) ||
+                   (props.NAME as string) ||
+                   (props.BASENAME as string) ||
+                   '';
+
+      // ALAND/AREALAND is in square meters (available in newer shapefiles)
+      const areaLand = props.ALAND || props.AREALAND || 0;
 
       boundaries.set(gisjoin, {
         geometry: feature.geometry,
-        name: (props.BASENAME as string) || (props.NAME as string)?.replace(' County', ''),
-        area: Math.round(areaSqMiles),
-        geoid,
+        name: name.replace(/ County$/, ''),
+        gisjoin,
+        areaLand,
       });
     }
 
-    console.log(`Loaded ${boundaries.size} county boundaries from TIGER/Line`);
+    console.log(`  ${year}: Loaded ${boundaries.size} Nevada county boundaries`);
   } catch (err) {
-    console.warn('Could not load county boundaries, using fallback geometries');
-    console.warn('Run: curl -o fieldline/src/data/raw/nhgis/nevada/counties-boundaries.geojson "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query?where=STATE=\'32\'&outFields=*&f=geojson&outSR=4326"');
+    console.warn(`  ${year}: Could not load shapefile (${(err as Error).message})`);
   }
 
   return boundaries;
 }
-
-// Fallback simplified geometries for historical counties that no longer exist
-const HISTORICAL_COUNTIES: Record<string, { name: string; coords: number[][]; area: number }> = {
-  'G3200250': { name: 'Ormsby', coords: [[-119.85,39.25],[-119.65,39.25],[-119.65,39.05],[-119.85,39.05],[-119.85,39.25]], area: 157 },
-  'G3200255': { name: 'Rio Virgin', coords: [[-114.5,37.0],[-114.0,37.0],[-114.0,36.5],[-114.5,36.5],[-114.5,37.0]], area: 500 },
-  'G3200275': { name: 'Roop', coords: [[-120.0,41.0],[-119.5,41.0],[-119.5,40.5],[-120.0,40.5],[-120.0,41.0]], area: 500 },
-  'G3200279': { name: 'Roop', coords: [[-120.0,41.0],[-119.5,41.0],[-119.5,40.5],[-120.0,40.5],[-120.0,41.0]], area: 500 },
-  'G3200350': { name: 'Bullfrog', coords: [[-117.0,37.5],[-116.5,37.5],[-116.5,37.0],[-117.0,37.0],[-117.0,37.5]], area: 1000 },
-  'G3200360': { name: 'Roop', coords: [[-120.0,41.0],[-119.5,41.0],[-119.5,40.5],[-120.0,40.5],[-120.0,41.0]], area: 500 },
-  'G3200370': { name: 'Lake', coords: [[-120.0,40.0],[-119.5,40.0],[-119.5,39.5],[-120.0,39.5],[-120.0,40.0]], area: 500 },
-  'G3200800': { name: 'Pahute', coords: [[-116.5,37.5],[-116.0,37.5],[-116.0,37.0],[-116.5,37.0],[-116.5,37.5]], area: 500 },
-  'G3200850': { name: 'St. Marys', coords: [[-117.0,41.0],[-116.5,41.0],[-116.5,40.5],[-117.0,40.5],[-117.0,41.0]], area: 500 },
-};
 
 async function findCSVFiles(dir: string): Promise<string[]> {
   const results: string[] = [];
@@ -197,9 +206,6 @@ async function main() {
   console.log('NHGIS Nevada Processing Pipeline');
   console.log('=================================\n');
 
-  // Load real county boundaries
-  const boundaries = await loadBoundaries();
-
   // Find all CSV files
   const csvFiles = await findCSVFiles(INPUT_DIR);
   console.log(`Found ${csvFiles.length} CSV files\n`);
@@ -215,7 +221,7 @@ async function main() {
   const allRecords: CensusRecord[] = [];
 
   for (const csvFile of csvFiles) {
-    const fileName = csvFile.split('/').pop();
+    const fileName = basename(csvFile);
     const records = await parseCSV(csvFile);
     if (records.length > 0) {
       console.log(`  ${fileName}: ${records.length} Nevada records`);
@@ -225,53 +231,67 @@ async function main() {
 
   console.log(`\nTotal: ${allRecords.length} county-year records\n`);
 
-  // Create GeoJSON features
-  console.log('Creating GeoJSON features...');
-  const features: GeoJSON.Feature[] = [];
-  let usedRealBoundaries = 0;
-  let usedFallback = 0;
-
+  // Group records by year
+  const byYear = new Map<number, CensusRecord[]>();
   for (const record of allRecords) {
-    let geometry: GeoJSON.Geometry;
-    let name: string;
-    let area: number;
+    const list = byYear.get(record.year) || [];
+    list.push(record);
+    byYear.set(record.year, list);
+  }
 
-    const boundary = boundaries.get(record.gisjoin);
-    if (boundary) {
-      geometry = boundary.geometry;
-      name = boundary.name;
-      area = boundary.area;
-      usedRealBoundaries++;
-    } else {
-      // Try historical county fallback
-      const historical = HISTORICAL_COUNTIES[record.gisjoin];
-      if (historical) {
-        geometry = { type: 'Polygon', coordinates: [historical.coords] };
-        name = historical.name;
-        area = historical.area;
-        usedFallback++;
+  // Load historical boundaries for each year
+  console.log('Loading historical county boundaries...');
+  const boundariesByYear = new Map<number, Map<string, CountyBoundary>>();
+  for (const year of byYear.keys()) {
+    const boundaries = await loadHistoricalBoundaries(year);
+    boundariesByYear.set(year, boundaries);
+  }
+
+  // Create GeoJSON features
+  console.log('\nCreating GeoJSON features...');
+  const features: GeoJSON.Feature[] = [];
+  let matched = 0;
+  let unmatched = 0;
+
+  for (const [year, records] of byYear) {
+    const boundaries = boundariesByYear.get(year);
+    if (!boundaries) continue;
+
+    for (const record of records) {
+      const boundary = boundaries.get(record.gisjoin);
+
+      if (boundary) {
+        // Calculate area in sq miles from shapefile if available, otherwise estimate
+        let areaSqMiles: number;
+        if (boundary.areaLand && boundary.areaLand > 0) {
+          areaSqMiles = boundary.areaLand / 2589988.11; // sq meters to sq miles
+        } else {
+          // Estimate area from bounding box if no area data
+          areaSqMiles = estimateAreaFromGeometry(boundary.geometry);
+        }
+
+        const popDensity = areaSqMiles > 0 ? record.totalPop / areaSqMiles : 0;
+
+        features.push({
+          type: 'Feature',
+          properties: {
+            gisjoin: record.gisjoin,
+            name: boundary.name || record.county,
+            year: record.year,
+            startTime: `${record.year}-01-01T00:00:00Z`,
+            totalPop: record.totalPop,
+            area: Math.round(areaSqMiles),
+            popDensity: Math.round(popDensity * 10) / 10,
+            color: getDensityColor(popDensity),
+          },
+          geometry: boundary.geometry,
+        });
+        matched++;
       } else {
-        console.warn(`  No boundary for: ${record.gisjoin} (${record.county})`);
-        continue;
+        console.warn(`  No boundary for: ${record.gisjoin} (${record.county}) in ${year}`);
+        unmatched++;
       }
     }
-
-    const popDensity = area > 0 ? record.totalPop / area : 0;
-
-    features.push({
-      type: 'Feature',
-      properties: {
-        gisjoin: record.gisjoin,
-        name,
-        year: record.year,
-        startTime: `${record.year}-01-01T00:00:00Z`,
-        totalPop: record.totalPop,
-        area,
-        popDensity: Math.round(popDensity * 10) / 10,
-        color: getDensityColor(popDensity),
-      },
-      geometry,
-    });
   }
 
   // Sort by year, then name
@@ -281,21 +301,21 @@ async function main() {
     return (a.properties!.name as string).localeCompare(b.properties!.name as string);
   });
 
-  console.log(`Created ${features.length} features (${usedRealBoundaries} real, ${usedFallback} fallback)\n`);
+  console.log(`Created ${features.length} features (${matched} matched, ${unmatched} unmatched)\n`);
 
   // Summary by year
-  const byYear = new Map<number, GeoJSON.Feature[]>();
+  console.log('Summary by year:');
+  const yearFeatures = new Map<number, GeoJSON.Feature[]>();
   for (const f of features) {
     const year = f.properties!.year as number;
-    const list = byYear.get(year) || [];
+    const list = yearFeatures.get(year) || [];
     list.push(f);
-    byYear.set(year, list);
+    yearFeatures.set(year, list);
   }
 
-  console.log('Summary by year:');
-  for (const [year, yearFeatures] of Array.from(byYear.entries()).sort((a, b) => a[0] - b[0])) {
-    const totalPop = yearFeatures.reduce((sum, f) => sum + (f.properties!.totalPop as number), 0);
-    console.log(`  ${year}: ${yearFeatures.length} counties, ${totalPop.toLocaleString()} total pop`);
+  for (const [year, yf] of Array.from(yearFeatures.entries()).sort((a, b) => a[0] - b[0])) {
+    const totalPop = yf.reduce((sum, f) => sum + (f.properties!.totalPop as number), 0);
+    console.log(`  ${year}: ${yf.length} counties, ${totalPop.toLocaleString()} total pop`);
   }
 
   // Write output
@@ -314,9 +334,10 @@ async function main() {
   const metadata = {
     name: 'Nevada Census Data',
     source: 'NHGIS (IPUMS)',
-    years: Array.from(byYear.keys()).sort((a, b) => a - b),
+    years: Array.from(yearFeatures.keys()).sort((a, b) => a - b),
     totalFeatures: features.length,
     variables: ['totalPop', 'popDensity', 'area'],
+    historicalBoundaries: true,
     generatedAt: new Date().toISOString(),
   };
 
@@ -325,6 +346,36 @@ async function main() {
   console.log(`Wrote ${metadataPath}`);
 
   console.log('\nProcessing complete!');
+}
+
+/**
+ * Rough area estimate from geometry bounding box (fallback when no area data).
+ */
+function estimateAreaFromGeometry(geometry: GeoJSON.Geometry): number {
+  // For rough estimates, use 1 degree ≈ 69 miles at Nevada latitudes
+  const milesPerDegree = 69;
+
+  if (geometry.type === 'Polygon') {
+    const coords = geometry.coordinates[0];
+    const lons = coords.map(c => c[0]);
+    const lats = coords.map(c => c[1]);
+    const width = (Math.max(...lons) - Math.min(...lons)) * milesPerDegree * 0.85; // cos(39°) ≈ 0.78
+    const height = (Math.max(...lats) - Math.min(...lats)) * milesPerDegree;
+    return width * height * 0.6; // rough correction for non-rectangular shapes
+  } else if (geometry.type === 'MultiPolygon') {
+    let totalArea = 0;
+    for (const poly of geometry.coordinates) {
+      const coords = poly[0];
+      const lons = coords.map(c => c[0]);
+      const lats = coords.map(c => c[1]);
+      const width = (Math.max(...lons) - Math.min(...lons)) * milesPerDegree * 0.85;
+      const height = (Math.max(...lats) - Math.min(...lats)) * milesPerDegree;
+      totalArea += width * height * 0.6;
+    }
+    return totalArea;
+  }
+
+  return 1000; // fallback for unknown geometry types
 }
 
 main().catch(err => {
