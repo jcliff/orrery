@@ -12,6 +12,7 @@ import { parisConfig } from './paris';
 import { copenhagenConfig } from './copenhagen';
 import { viennaConfig } from './vienna';
 import { northernNevadaConfig } from './northern-nevada';
+import { nhgisNevadaConfig } from './nhgis-nevada';
 
 export const visualizations: VisualizationRegistry = {
   hurricanes: hurricanesConfig,
@@ -27,4 +28,5 @@ export const visualizations: VisualizationRegistry = {
   'copenhagen': copenhagenConfig,
   'vienna': viennaConfig,
   'northern-nevada': northernNevadaConfig,
+  'nhgis-nevada': nhgisNevadaConfig,
 };

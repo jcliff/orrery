@@ -129,7 +129,7 @@ async function main() {
     const response = await fetchPage(offset);
     const pageFeatures = response.features
       .map(esriToGeoJSON)
-      .filter((f): f is GeoJSON.Feature => f !== null);
+      .filter((f): f is GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon> => f !== null);
 
     allFeatures.push(...pageFeatures);
     console.log(
