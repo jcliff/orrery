@@ -23,8 +23,8 @@ proj4.defs(
 const INPUT_DIR = new URL('../../data/raw/nhgis/nevada-historical', import.meta.url).pathname;
 const OUTPUT_DIR = new URL('../../../../chrona/public/data/nhgis-eastern', import.meta.url).pathname;
 
-// Original 13 Colonies: CT(09), DE(10), GA(13), MD(24), MA(25), NH(33), NJ(34), NY(36), NC(37), PA(42), RI(44), SC(45), VA(51)
-const EASTERN_STATE_FIPS = ['G09', 'G10', 'G13', 'G24', 'G25', 'G33', 'G34', 'G36', 'G37', 'G42', 'G44', 'G45', 'G51'];
+// Original 13 Colonies + ME, VT, WV: CT(09), DE(10), GA(13), ME(23), MD(24), MA(25), NH(33), NJ(34), NY(36), NC(37), PA(42), RI(44), SC(45), VT(50), VA(51), WV(54)
+const EASTERN_STATE_FIPS = ['G09', 'G10', 'G13', 'G23', 'G24', 'G25', 'G33', 'G34', 'G36', 'G37', 'G42', 'G44', 'G45', 'G50', 'G51', 'G54'];
 
 function isEasternState(gisjoin: string): boolean {
   return EASTERN_STATE_FIPS.some(fips => gisjoin.startsWith(fips));
@@ -388,7 +388,7 @@ async function main() {
 
   // Write metadata
   const metadata = {
-    name: 'Eastern US Census Data (Original 13 Colonies)',
+    name: 'Eastern US Census Data (16 states)',
     source: 'NHGIS (IPUMS)',
     years: Array.from(yearFeatures.keys()).sort((a, b) => a - b),
     totalFeatures: features.length,
