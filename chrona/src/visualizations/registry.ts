@@ -14,6 +14,7 @@ import { viennaConfig } from './vienna';
 import { northernNevadaConfig } from './northern-nevada';
 import { nhgisNevadaConfig } from './nhgis-nevada';
 import { westernCensusConfig } from './western-census';
+import { easternCensusConfig } from './eastern-census';
 
 export const visualizations: VisualizationRegistry = {
   hurricanes: hurricanesConfig,
@@ -31,4 +32,5 @@ export const visualizations: VisualizationRegistry = {
   'northern-nevada': northernNevadaConfig,
   'nhgis-nevada': nhgisNevadaConfig,
   'western-census': westernCensusConfig,
+  'eastern-census': easternCensusConfig,
 };
